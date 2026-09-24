@@ -24,10 +24,10 @@
 //! host. An earlier revision of this file used `to_be_bytes`/`from_be_bytes`,
 //! which on x86_64 sends `00 00 00 2c` — greetd then waits for a 738 MB frame
 //! and the connection stalls. The C original this was ported from
-//! (`src/loginsicompass-c/ipc.c`) sent the `uint32_t` straight out of memory,
+//! (`legacy-c/ipc.c`) sent the `uint32_t` straight out of memory,
 //! i.e. native order, and was correct.
 //!
-//! Mirrors `ipc.c` + `greetd.c` in `src/loginsicompass-c/`.
+//! Mirrors `ipc.c` + `greetd.c` in `legacy-c/`.
 
 use serde::{Deserialize, Serialize};
 use std::io::{self, Read, Write};
@@ -64,10 +64,7 @@ pub enum Request {
     /// `execve` a file whose name is the entire line. `env` is added to the
     /// environment PAM built, and is where `XDG_SESSION_TYPE`,
     /// `XDG_SESSION_DESKTOP` and `XDG_CURRENT_DESKTOP` come from.
-    StartSession {
-        cmd: Vec<String>,
-        env: Vec<String>,
-    },
+    StartSession { cmd: Vec<String>, env: Vec<String> },
     /// Abort the current session.
     CancelSession,
 }
@@ -160,8 +157,7 @@ impl GreetdClient {
         let mut resp_buf = vec![0u8; resp_len];
         self.stream.read_exact(&mut resp_buf)?;
 
-        serde_json::from_slice(&resp_buf)
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
+        serde_json::from_slice(&resp_buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))
     }
 
     // ---- Convenience wrappers (mirror greetd.c helper functions) ----
@@ -224,7 +220,11 @@ mod tests {
     #[test]
     fn frame_length_is_native_endian() {
         let payload = br#"{"type": "create_session", "username": "me"}"#;
-        assert_eq!(payload.len(), 44, "the man page's example payload is 44 bytes");
+        assert_eq!(
+            payload.len(),
+            44,
+            "the man page's example payload is 44 bytes"
+        );
 
         let framed = (payload.len() as u32).to_ne_bytes();
 

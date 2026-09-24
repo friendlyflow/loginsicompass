@@ -256,7 +256,11 @@ mod tests {
 
     /// Drive a script against a real worker over a real socket, collecting
     /// every event until `want` of them have arrived or time runs out.
-    fn run_script(script: Vec<Step>, cmds: Vec<GreetdCmd>, want: usize) -> (Vec<GreetdEvent>, Vec<String>) {
+    fn run_script(
+        script: Vec<Step>,
+        cmds: Vec<GreetdCmd>,
+        want: usize,
+    ) -> (Vec<GreetdEvent>, Vec<String>) {
         let dir = tempfile::tempdir().unwrap();
         let (listener, path) = bind(dir.path());
         let server = std::thread::spawn(move || serve_script(&listener, script));
@@ -289,8 +293,12 @@ mod tests {
                 Step::new("start_session", Response::Success),
             ],
             vec![
-                GreetdCmd::Create { username: "nico".into() },
-                GreetdCmd::Answer { response: Some("hunter2".into()) },
+                GreetdCmd::Create {
+                    username: "nico".into(),
+                },
+                GreetdCmd::Answer {
+                    response: Some("hunter2".into()),
+                },
                 GreetdCmd::Start {
                     cmd: vec!["/bin/desicompass".into(), "--backend".into(), "tty".into()],
                     env: vec!["XDG_SESSION_TYPE=wayland".into()],
@@ -301,14 +309,25 @@ mod tests {
         assert_eq!(
             events,
             vec![
-                GreetdEvent::Prompt { secret: true, text: "Password:".into() },
+                GreetdEvent::Prompt {
+                    secret: true,
+                    text: "Password:".into()
+                },
                 GreetdEvent::Authenticated,
                 GreetdEvent::Started,
             ]
         );
         // The argv and the environment reached the wire intact.
-        assert!(seen[2].contains(r#""cmd":["/bin/desicompass","--backend","tty"]"#), "{}", seen[2]);
-        assert!(seen[2].contains(r#""env":["XDG_SESSION_TYPE=wayland"]"#), "{}", seen[2]);
+        assert!(
+            seen[2].contains(r#""cmd":["/bin/desicompass","--backend","tty"]"#),
+            "{}",
+            seen[2]
+        );
+        assert!(
+            seen[2].contains(r#""env":["XDG_SESSION_TYPE=wayland"]"#),
+            "{}",
+            seen[2]
+        );
     }
 
     #[test]
@@ -319,12 +338,22 @@ mod tests {
                 Step::new("wrong", auth_err("authentication error: PERM_DENIED")),
             ],
             vec![
-                GreetdCmd::Create { username: "nico".into() },
-                GreetdCmd::Answer { response: Some("wrong".into()) },
+                GreetdCmd::Create {
+                    username: "nico".into(),
+                },
+                GreetdCmd::Answer {
+                    response: Some("wrong".into()),
+                },
             ],
             2,
         );
-        assert_eq!(events[0], GreetdEvent::Prompt { secret: true, text: "Password:".into() });
+        assert_eq!(
+            events[0],
+            GreetdEvent::Prompt {
+                secret: true,
+                text: "Password:".into()
+            }
+        );
         assert!(
             matches!(&events[1], GreetdEvent::Failed { auth: true, text } if text.contains("PERM_DENIED")),
             "got {:?}",
@@ -342,14 +371,22 @@ mod tests {
                 Step::new("create_session", info("Insert your fingerprint")),
                 Step::new(r#""response":null"#, secret("Password:")),
             ],
-            vec![GreetdCmd::Create { username: "nico".into() }],
+            vec![GreetdCmd::Create {
+                username: "nico".into(),
+            }],
             2,
         );
         assert_eq!(
             events,
             vec![
-                GreetdEvent::Notice { text: "Insert your fingerprint".into(), is_error: false },
-                GreetdEvent::Prompt { secret: true, text: "Password:".into() },
+                GreetdEvent::Notice {
+                    text: "Insert your fingerprint".into(),
+                    is_error: false
+                },
+                GreetdEvent::Prompt {
+                    secret: true,
+                    text: "Password:".into()
+                },
             ]
         );
         assert_eq!(seen.len(), 2, "the worker must have sent the ACK itself");
@@ -360,18 +397,26 @@ mod tests {
     fn an_error_auth_message_is_a_notice_and_is_also_acknowledged() {
         let (events, seen) = run_script(
             vec![
-                Step::new("create_session", Response::AuthMessage {
-                    auth_message_type: AuthMessageType::Error,
-                    auth_message: "Account expires tomorrow".into(),
-                }),
+                Step::new(
+                    "create_session",
+                    Response::AuthMessage {
+                        auth_message_type: AuthMessageType::Error,
+                        auth_message: "Account expires tomorrow".into(),
+                    },
+                ),
                 Step::new(r#""response":null"#, secret("Password:")),
             ],
-            vec![GreetdCmd::Create { username: "nico".into() }],
+            vec![GreetdCmd::Create {
+                username: "nico".into(),
+            }],
             2,
         );
         assert_eq!(
             events[0],
-            GreetdEvent::Notice { text: "Account expires tomorrow".into(), is_error: true }
+            GreetdEvent::Notice {
+                text: "Account expires tomorrow".into(),
+                is_error: true
+            }
         );
         assert_eq!(seen.len(), 2);
     }
@@ -381,24 +426,39 @@ mod tests {
         let (events, _) = run_script(
             vec![
                 Step::new("create_session", secret("Password:")),
-                Step::new("hunter2", Response::AuthMessage {
-                    auth_message_type: AuthMessageType::Visible,
-                    auth_message: "OTP:".into(),
-                }),
+                Step::new(
+                    "hunter2",
+                    Response::AuthMessage {
+                        auth_message_type: AuthMessageType::Visible,
+                        auth_message: "OTP:".into(),
+                    },
+                ),
                 Step::new("123456", Response::Success),
             ],
             vec![
-                GreetdCmd::Create { username: "nico".into() },
-                GreetdCmd::Answer { response: Some("hunter2".into()) },
-                GreetdCmd::Answer { response: Some("123456".into()) },
+                GreetdCmd::Create {
+                    username: "nico".into(),
+                },
+                GreetdCmd::Answer {
+                    response: Some("hunter2".into()),
+                },
+                GreetdCmd::Answer {
+                    response: Some("123456".into()),
+                },
             ],
             3,
         );
         assert_eq!(
             events,
             vec![
-                GreetdEvent::Prompt { secret: true, text: "Password:".into() },
-                GreetdEvent::Prompt { secret: false, text: "OTP:".into() },
+                GreetdEvent::Prompt {
+                    secret: true,
+                    text: "Password:".into()
+                },
+                GreetdEvent::Prompt {
+                    secret: false,
+                    text: "OTP:".into()
+                },
                 GreetdEvent::Authenticated,
             ]
         );
@@ -413,10 +473,17 @@ mod tests {
                 Step::new("start_session", info("Last login: yesterday")),
                 Step::new(r#""response":null"#, Response::Success),
             ],
-            vec![GreetdCmd::Start { cmd: vec!["/bin/sway".into()], env: vec![] }],
+            vec![GreetdCmd::Start {
+                cmd: vec!["/bin/sway".into()],
+                env: vec![],
+            }],
             2,
         );
-        assert_eq!(events[1], GreetdEvent::Started, "origin must survive the ACK");
+        assert_eq!(
+            events[1],
+            GreetdEvent::Started,
+            "origin must survive the ACK"
+        );
     }
 
     #[test]
@@ -428,12 +495,20 @@ mod tests {
             ],
             vec![
                 GreetdCmd::Cancel,
-                GreetdCmd::Create { username: "other".into() },
+                GreetdCmd::Create {
+                    username: "other".into(),
+                },
             ],
             1,
         );
         // Only the new prompt: the cancel produced no event of its own.
-        assert_eq!(events, vec![GreetdEvent::Prompt { secret: true, text: "Password:".into() }]);
+        assert_eq!(
+            events,
+            vec![GreetdEvent::Prompt {
+                secret: true,
+                text: "Password:".into()
+            }]
+        );
         assert_eq!(seen.len(), 2);
     }
 
@@ -442,7 +517,9 @@ mod tests {
         // An empty script: the server accepts, then drops the connection.
         let (events, _) = run_script(
             vec![],
-            vec![GreetdCmd::Create { username: "nico".into() }],
+            vec![GreetdCmd::Create {
+                username: "nico".into(),
+            }],
             1,
         );
         assert!(

@@ -47,7 +47,11 @@ pub enum Decision {
 ///
 /// `done_signalled` is the byte on the pipe; `status` is the child's exit
 /// status, which is deliberately only consulted for logging.
-pub fn decide(_status: Option<ExitStatus>, done_signalled: bool, already_fell_back: bool) -> Decision {
+pub fn decide(
+    _status: Option<ExitStatus>,
+    done_signalled: bool,
+    already_fell_back: bool,
+) -> Decision {
     if done_signalled {
         // The session is running. Whether the child then exited 0 or was
         // killed is not our business.

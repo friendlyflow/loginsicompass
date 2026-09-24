@@ -5,8 +5,9 @@
 //! authentication failures every time the wrong-password path is exercised.
 //!
 //! ```text
-//! cargo run -p loginsicompass --example fake-greetd -- /tmp/greetd.sock hunter2
-//! GREETD_SOCK=/tmp/greetd.sock cargo run -p desicompass -- --backend auto \
+//! cargo run --example fake-greetd -- /tmp/greetd.sock hunter2
+//! GREETD_SOCK=/tmp/greetd.sock cargo run --manifest-path ../desicompass/Cargo.toml -- \
+//!     --backend auto \
 //!     --startup-cmd "$PWD/target/debug/loginsicompass --state-dir /tmp/state"
 //! ```
 //!

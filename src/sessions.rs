@@ -321,7 +321,11 @@ pub fn enumerate(extra_dirs: &[PathBuf]) -> Vec<SessionEntry> {
 fn disambiguate(sessions: &mut [SessionEntry]) {
     let names: Vec<String> = sessions.iter().map(|s| s.name.clone()).collect();
     for (i, s) in sessions.iter_mut().enumerate() {
-        if names.iter().enumerate().any(|(j, n)| j != i && *n == names[i]) {
+        if names
+            .iter()
+            .enumerate()
+            .any(|(j, n)| j != i && *n == names[i])
+        {
             s.name = format!("{} ({})", s.name, s.id);
         }
     }
@@ -385,7 +389,8 @@ DesktopNames=COSMIC
 
     #[test]
     fn builds_the_session_environment() {
-        let e = parse_desktop_entry(DESICOMPASS, "desicompass", SessionType::Wayland, None).unwrap();
+        let e =
+            parse_desktop_entry(DESICOMPASS, "desicompass", SessionType::Wayland, None).unwrap();
         assert_eq!(
             e.env(),
             vec![
@@ -415,10 +420,16 @@ DesktopNames=COSMIC
     #[test]
     fn exec_quoting_and_field_codes() {
         assert_eq!(split_exec(r#"foo "a b" %U"#), vec!["foo", "a b"]);
-        assert_eq!(split_exec("prog --flag  value"), vec!["prog", "--flag", "value"]);
+        assert_eq!(
+            split_exec("prog --flag  value"),
+            vec!["prog", "--flag", "value"]
+        );
         assert_eq!(split_exec("prog %f %F %u %i %c %k"), vec!["prog"]);
         assert_eq!(split_exec("prog 100%%"), vec!["prog", "100%"]);
-        assert_eq!(split_exec(r#"prog "quoted \"inner\"""#), vec!["prog", r#"quoted "inner""#]);
+        assert_eq!(
+            split_exec(r#"prog "quoted \"inner\"""#),
+            vec!["prog", r#"quoted "inner""#]
+        );
         assert_eq!(split_exec(""), Vec::<String>::new());
         assert_eq!(split_exec("   "), Vec::<String>::new());
     }
@@ -523,10 +534,16 @@ Type=Application
 
     #[test]
     fn explicit_dirs_come_first_and_are_classified_by_name() {
-        let extra = vec![PathBuf::from("/e/xsessions"), PathBuf::from("/e/wayland-sessions")];
+        let extra = vec![
+            PathBuf::from("/e/xsessions"),
+            PathBuf::from("/e/wayland-sessions"),
+        ];
         let dirs = search_dirs(Some("/a"), &extra);
         assert_eq!(dirs[0], (PathBuf::from("/e/xsessions"), SessionType::X11));
-        assert_eq!(dirs[1], (PathBuf::from("/e/wayland-sessions"), SessionType::Wayland));
+        assert_eq!(
+            dirs[1],
+            (PathBuf::from("/e/wayland-sessions"), SessionType::Wayland)
+        );
     }
 
     // ---- Disambiguation ----
@@ -588,7 +605,10 @@ mod fallback_target_tests {
     /// the first rather than to nothing.
     #[test]
     fn the_remembered_session_is_chosen_by_id_and_degrades_to_the_first() {
-        let sessions = vec![entry("cosmic", "COSMIC"), entry("desicompass", "Desicompass")];
+        let sessions = vec![
+            entry("cosmic", "COSMIC"),
+            entry("desicompass", "Desicompass"),
+        ];
         let ids: Vec<String> = sessions.iter().map(|s| s.id.clone()).collect();
 
         assert_eq!(crate::lastlogin::index_of(&ids, Some("desicompass")), 1);

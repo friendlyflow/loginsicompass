@@ -3,7 +3,7 @@
 //! Implements the smithay-client-toolkit delegate traits for the login window,
 //! keyboard input, seat, and output handling.
 //!
-//! The authentication flow mirrors `main.c` in `src/loginsicompass/`:
+//! The authentication flow mirrors `main.c` in `legacy-c/`:
 //!   create_session → auth_message → post_response → start_session → exit.
 
 use smithay_client_toolkit::{
@@ -13,33 +13,33 @@ use smithay_client_toolkit::{
     registry::{ProvidesRegistryState, RegistryState},
     registry_handlers,
     seat::{
-        keyboard::{KeyEvent, KeyboardHandler, Modifiers, RawModifiers},
         Capability, SeatHandler, SeatState,
+        keyboard::{KeyEvent, KeyboardHandler, Modifiers, RawModifiers},
     },
     shell::{
-        xdg::{
-            window::{Window, WindowConfigure, WindowDecorations, WindowHandler},
-            XdgShell,
-        },
         WaylandSurface,
+        xdg::{
+            XdgShell,
+            window::{Window, WindowConfigure, WindowDecorations, WindowHandler},
+        },
     },
     shm::{
-        slot::{Buffer, SlotPool},
         Shm, ShmHandler,
+        slot::{Buffer, SlotPool},
     },
 };
 use wayland_client::{
+    Connection, QueueHandle,
     globals::GlobalList,
     protocol::{wl_keyboard, wl_output, wl_seat, wl_shm, wl_surface},
-    Connection, QueueHandle,
 };
 use xkeysym::Keysym;
 
-use crate::greetd::{AuthMessageType, GreetdClient, Response};
 use super::{
     entry::{InputMode, PasswordEntry},
-    renderer::{render_frame, RenderConfig},
+    renderer::{RenderConfig, render_frame},
 };
+use crate::greetd::{AuthMessageType, GreetdClient, Response};
 
 // ---------------------------------------------------------------------------
 // AppState
@@ -157,12 +157,7 @@ impl AppState {
 
         let (buffer, canvas) = self
             .pool
-            .create_buffer(
-                w as i32,
-                h as i32,
-                (w * 4) as i32,
-                wl_shm::Format::Argb8888,
-            )
+            .create_buffer(w as i32, h as i32, (w * 4) as i32, wl_shm::Format::Argb8888)
             .expect("failed to create buffer");
 
         // Render.
@@ -173,13 +168,15 @@ impl AppState {
         let pixels = render_frame(&cfg, &self.entry);
         for (dst, src) in canvas.chunks_exact_mut(4).zip(pixels.iter()) {
             // wl_shm ARGB8888 on little-endian is stored as [B, G, R, A].
-            dst[0] = (*src & 0xFF) as u8;           // B
-            dst[1] = ((*src >> 8) & 0xFF) as u8;    // G
-            dst[2] = ((*src >> 16) & 0xFF) as u8;   // R
-            dst[3] = ((*src >> 24) & 0xFF) as u8;   // A
+            dst[0] = (*src & 0xFF) as u8; // B
+            dst[1] = ((*src >> 8) & 0xFF) as u8; // G
+            dst[2] = ((*src >> 16) & 0xFF) as u8; // R
+            dst[3] = ((*src >> 24) & 0xFF) as u8; // A
         }
 
-        self.window.wl_surface().attach(Some(buffer.wl_buffer()), 0, 0);
+        self.window
+            .wl_surface()
+            .attach(Some(buffer.wl_buffer()), 0, 0);
         self.window
             .wl_surface()
             .damage_buffer(0, 0, w as i32, h as i32);
@@ -327,7 +324,6 @@ impl CompositorHandler for AppState {
     }
 }
 
-
 // ---- Output ----
 
 impl OutputHandler for AppState {
@@ -359,7 +355,6 @@ impl OutputHandler for AppState {
     ) {
     }
 }
-
 
 // ---- Seat ----
 
@@ -402,7 +397,6 @@ impl SeatHandler for AppState {
 
     fn remove_seat(&mut self, _: &Connection, _: &QueueHandle<Self>, _: wl_seat::WlSeat) {}
 }
-
 
 // ---- Keyboard ----
 
@@ -499,7 +493,6 @@ impl KeyboardHandler for AppState {
     }
 }
 
-
 // ---- Shm ----
 
 impl ShmHandler for AppState {
@@ -507,7 +500,6 @@ impl ShmHandler for AppState {
         &mut self.shm
     }
 }
-
 
 // ---- XDG shell ----
 
@@ -537,7 +529,6 @@ impl WindowHandler for AppState {
         }
     }
 }
-
 
 // ---- Registry ----
 

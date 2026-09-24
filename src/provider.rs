@@ -673,7 +673,10 @@ mod tests {
     fn two_users() -> LoginProvider {
         offline(
             vec![user("nico"), user("guest")],
-            vec![session("desicompass", "Desicompass"), session("cosmic", "COSMIC")],
+            vec![
+                session("desicompass", "Desicompass"),
+                session("cosmic", "COSMIC"),
+            ],
         )
     }
 
@@ -713,7 +716,9 @@ mod tests {
         // Three separate power buttons, not a group.
         for f in [power::SUSPEND, power::REBOOT, power::POWEROFF] {
             assert_eq!(
-                l.iter().filter(|s| s.contains(&format!("<button>{f}</button>"))).count(),
+                l.iter()
+                    .filter(|s| s.contains(&format!("<button>{f}</button>")))
+                    .count(),
                 1,
                 "expected exactly one {f} button in {l:?}"
             );
@@ -861,7 +866,10 @@ mod tests {
         assert_eq!(p.phase, Phase::Idle);
         p.commit_edit("", &tags::format_password("hunter2"));
         assert_eq!(p.phase, Phase::Idle, "phase must not advance");
-        assert!(p.message.is_some(), "the user must be told why nothing happened");
+        assert!(
+            p.message.is_some(),
+            "the user must be told why nothing happened"
+        );
     }
 
     // ---- tick vs needs_refresh ----
@@ -924,10 +932,13 @@ mod tests {
     #[test]
     fn a_full_login_starts_the_session_and_sets_done() {
         let (mut p, server) = with_greetd(vec![
-            Step::new("create_session", Response::AuthMessage {
-                auth_message_type: AuthMessageType::Secret,
-                auth_message: "Password:".into(),
-            }),
+            Step::new(
+                "create_session",
+                Response::AuthMessage {
+                    auth_message_type: AuthMessageType::Secret,
+                    auth_message: "Password:".into(),
+                },
+            ),
             Step::new("hunter2", Response::Success),
             Step::new("start_session", Response::Success),
         ]);
@@ -937,29 +948,45 @@ mod tests {
         drive(&mut p, Phase::Done);
 
         assert!(p.is_done());
-        assert!(p.done_flag().load(Ordering::Relaxed), "the loop must be told to stop");
+        assert!(
+            p.done_flag().load(Ordering::Relaxed),
+            "the loop must be told to stop"
+        );
 
         let seen = server.join().unwrap();
-        assert!(seen[2].contains(r#""cmd":["/bin/desicompass"]"#), "{}", seen[2]);
+        assert!(
+            seen[2].contains(r#""cmd":["/bin/desicompass"]"#),
+            "{}",
+            seen[2]
+        );
         assert!(seen[2].contains("XDG_SESSION_TYPE=wayland"), "{}", seen[2]);
     }
 
     #[test]
     fn a_wrong_password_reports_and_starts_a_fresh_attempt() {
         let (mut p, server) = with_greetd(vec![
-            Step::new("create_session", Response::AuthMessage {
-                auth_message_type: AuthMessageType::Secret,
-                auth_message: "Password:".into(),
-            }),
-            Step::new("wrong", Response::Error {
-                error_type: ErrorType::AuthError,
-                description: "authentication error: PERM_DENIED".into(),
-            }),
+            Step::new(
+                "create_session",
+                Response::AuthMessage {
+                    auth_message_type: AuthMessageType::Secret,
+                    auth_message: "Password:".into(),
+                },
+            ),
+            Step::new(
+                "wrong",
+                Response::Error {
+                    error_type: ErrorType::AuthError,
+                    description: "authentication error: PERM_DENIED".into(),
+                },
+            ),
             // The provider starts over, so a second create_session follows.
-            Step::new("create_session", Response::AuthMessage {
-                auth_message_type: AuthMessageType::Secret,
-                auth_message: "Password:".into(),
-            }),
+            Step::new(
+                "create_session",
+                Response::AuthMessage {
+                    auth_message_type: AuthMessageType::Secret,
+                    auth_message: "Password:".into(),
+                },
+            ),
         ]);
 
         drive(&mut p, Phase::Prompting { secret: true });
@@ -975,22 +1002,32 @@ mod tests {
         assert_eq!(p.message.as_deref(), Some("Wrong password. Try again."));
         assert!(!p.is_done());
         let seen = server.join().unwrap();
-        assert_eq!(seen.len(), 3, "a failed attempt must be restarted, not left half-open");
+        assert_eq!(
+            seen.len(),
+            3,
+            "a failed attempt must be restarted, not left half-open"
+        );
         assert!(seen[2].contains("create_session"));
     }
 
     #[test]
     fn switching_user_cancels_the_session_that_was_being_configured() {
         let (mut p, server) = with_greetd(vec![
-            Step::new("create_session", Response::AuthMessage {
-                auth_message_type: AuthMessageType::Secret,
-                auth_message: "Password:".into(),
-            }),
+            Step::new(
+                "create_session",
+                Response::AuthMessage {
+                    auth_message_type: AuthMessageType::Secret,
+                    auth_message: "Password:".into(),
+                },
+            ),
             Step::new("cancel_session", Response::Success),
-            Step::new("create_session", Response::AuthMessage {
-                auth_message_type: AuthMessageType::Secret,
-                auth_message: "Password:".into(),
-            }),
+            Step::new(
+                "create_session",
+                Response::AuthMessage {
+                    auth_message_type: AuthMessageType::Secret,
+                    auth_message: "Password:".into(),
+                },
+            ),
         ]);
 
         drive(&mut p, Phase::Prompting { secret: true });

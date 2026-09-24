@@ -1,7 +1,7 @@
 //! Software renderer — draws the login screen into a pixel buffer.
 //!
 //! Replaces the EGL + OpenGL ES 2.0 + Cairo + Pango stack from
-//! `src/loginsicompass/` with a pure-Rust pipeline:
+//! `legacy-c/` with a pure-Rust pipeline:
 //!
 //! * [`tiny_skia`] for 2D vector drawing (background fill, rounded rects,
 //!   password dots, border)
@@ -18,7 +18,7 @@ use super::entry::{InputMode, PasswordEntry};
 // ---------------------------------------------------------------------------
 
 /// All styling options for a single frame.  Mirrors the CLI flags from
-/// `src/loginsicompass-c/main.c`.
+/// `legacy-c/main.c`.
 #[derive(Debug, Clone)]
 pub struct RenderConfig {
     /// Window dimensions in pixels.
@@ -76,9 +76,8 @@ impl Default for RenderConfig {
 /// Pixels are in `0xAARRGGBB` (little-endian BGRA on disk, but `u32` integer
 /// value matches `0xAARRGGBB`) — the format expected by `wl_shm WL_SHM_FORMAT_ARGB8888`.
 pub fn render_frame(cfg: &RenderConfig, entry: &PasswordEntry) -> Vec<u32> {
-    let mut pixmap = Pixmap::new(cfg.width, cfg.height).unwrap_or_else(|| {
-        Pixmap::new(1, 1).unwrap()
-    });
+    let mut pixmap =
+        Pixmap::new(cfg.width, cfg.height).unwrap_or_else(|| Pixmap::new(1, 1).unwrap());
 
     // ---- 1. Background ----
     draw_background(&mut pixmap, cfg);
@@ -194,7 +193,13 @@ fn draw_entry_box(
         for i in 0..filled.min(cfg.num_characters as usize) {
             let cx = start_x + i as f32 * step;
             let path = PathBuilder::from_circle(cx, dot_y, r).unwrap();
-            pixmap.fill_path(&path, &paint, FillRule::Winding, Transform::identity(), None);
+            pixmap.fill_path(
+                &path,
+                &paint,
+                FillRule::Winding,
+                Transform::identity(),
+                None,
+            );
         }
     }
 }

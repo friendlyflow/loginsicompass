@@ -1,7 +1,7 @@
 //! Password entry state machine.
 //!
 //! Handles buffering typed characters, backspace, clear, and submission.
-//! Mirrors the `entry` struct and keyboard handling in `src/loginsicompass/`.
+//! Mirrors the `entry` struct and keyboard handling in `legacy-c/`.
 //!
 //! This module is pure logic — no Wayland or rendering dependencies.
 

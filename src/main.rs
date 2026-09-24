@@ -1,6 +1,7 @@
 //! loginsicompass — greetd login screen entry point.
 //!
-//! Rust port of `src/loginsicompass-c/main.c`.
+//! Rust port of `legacy-c/main.c`. The C original is no longer in the tree;
+//! `git show 3c26ef0^:legacy-c/main.c` reads it from this repo's history.
 //!
 //! Linux-only: connects to the Wayland compositor specified by `WAYLAND_DISPLAY`,
 //! shows a full-screen login window, authenticates via greetd, and
@@ -31,9 +32,9 @@ mod users;
 
 #[cfg(target_os = "linux")]
 mod linux {
-    use clap::Parser;
     use crate::fallback::state::AppState;
-    use wayland_client::{globals::registry_queue_init, Connection};
+    use clap::Parser;
+    use wayland_client::{Connection, globals::registry_queue_init};
 
     use crate::fallback::{color::parse_hex, renderer::RenderConfig};
 
@@ -51,7 +52,6 @@ mod linux {
         // graphical greeter and the software fallback now enumerate users and
         // sessions themselves; `--user-extra` below is the escape hatch for a
         // host whose accounts are not in /etc/passwd.
-
         /// Path to a PNG/JPEG background image.
         #[arg(short = 'b', long)]
         background_image: Option<String>,
@@ -200,7 +200,11 @@ mod linux {
             .user_extra
             .first()
             .cloned()
-            .or_else(|| names.get(crate::lastlogin::index_of(&names, last.user())).cloned())
+            .or_else(|| {
+                names
+                    .get(crate::lastlogin::index_of(&names, last.user()))
+                    .cloned()
+            })
             .unwrap_or_default();
 
         let sessions = crate::sessions::enumerate(&args.sessions_dir);
@@ -276,18 +280,16 @@ mod linux {
 
         // ---- Connect to greetd ----
         match crate::greetd::GreetdClient::connect() {
-            Ok(mut client) => {
-                match client.create_session(&username) {
-                    Ok(resp) => {
-                        app.greetd = Some(client);
-                        app.handle_response_pub(resp);
-                    }
-                    Err(e) => {
-                        tracing::error!("greetd create_session failed: {e}");
-                        app.greetd = Some(client);
-                    }
+            Ok(mut client) => match client.create_session(&username) {
+                Ok(resp) => {
+                    app.greetd = Some(client);
+                    app.handle_response_pub(resp);
                 }
-            }
+                Err(e) => {
+                    tracing::error!("greetd create_session failed: {e}");
+                    app.greetd = Some(client);
+                }
+            },
             Err(e) => {
                 tracing::warn!("could not connect to greetd ({e}); running without authentication");
             }

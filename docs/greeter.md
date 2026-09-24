@@ -1,6 +1,6 @@
 # The login greeter
 
-`src/loginsicompass` is the greetd greeter. It draws the login screen with the
+loginsicompass is the greetd greeter. It draws the login screen with the
 application's own renderer, so a screen-reader user meets the same list, the
 same prefixes and the same masked field at the login prompt as inside the app.
 
@@ -145,11 +145,11 @@ last thing turned on.
 ```sh
 # A greetd that always asks for a password and accepts the one you name.
 # The socket path must be short: sockaddr_un caps it at ~108 bytes.
-cargo run -p loginsicompass --example fake-greetd -- /tmp/greetd.sock hunter2
+cargo run --example fake-greetd -- /tmp/greetd.sock hunter2
 
 # The greeter, nested inside desicompass (its own repo, checked out next to
 # this one at ../desicompass), inside your current session.
-cargo build -p loginsicompass
+cargo build
 GREETD_SOCK=/tmp/greetd.sock cargo run --manifest-path ../desicompass/Cargo.toml -- \
   --backend auto \
   --startup-cmd "$PWD/target/debug/loginsicompass --state-dir /tmp/lsc-state"
@@ -177,7 +177,8 @@ about a login screen.
 
 The module lives in the desicompass repo's `flake.nix`
 (github:friendlyflow/desicompass), next to the compositor it starts, and takes
-the `loginsicompass` package from this flake.
+the `loginsicompass` package from this repo's flake
+(`services.desicompass.greeter.package` overrides it).
 
 - **`dbus-run-session`.** `accesskit_unix` speaks AT-SPI2 over the *session*
   bus. Without one the greeter stalls 400ms waiting for a registration that

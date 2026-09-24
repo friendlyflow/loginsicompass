@@ -1,19 +1,17 @@
 [package]
-publish = false  # internal crate, never published to crates.io
+# Shipped as a Nix package and through desicompass's NixOS module, never
+# through crates.io.
+publish = false
 name = "loginsicompass"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
-description = "loginsicompass — greetd login screen (Rust port of src/loginsicompass-c/)"
+version = "0.2.0"
+edition = "2024"
+license = "GPL-3.0-only"
+description = "The accessible greetd login screen for sicompass"
+repository = "https://github.com/friendlyflow/loginsicompass"
 
 [[bin]]
 name = "loginsicompass"
 path = "src/main.rs"
-
-# See the same block in src/desicompass/Cargo.toml: cargo-dist ships every
-# workspace `[[bin]]`, and a greetd greeter is Linux-only.
-[package.metadata.dist]
-dist = false
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Wayland client — smithay-client-toolkit 0.21 for XDG shell, shm, seat
@@ -28,12 +26,13 @@ xkeysym = "0.2"
 # 2D drawing for framebuffer (no GPU needed)
 tiny-skia = "0.11"
 
-# PNG / JPEG background image loading (already in workspace)
-image = { workspace = true }
+# PNG / JPEG background image loading. Same requirement as sicompass-ui's, so
+# cargo builds one copy.
+image = { version = "0.25", features = ["jpeg", "png", "webp"] }
 
 # greetd IPC: JSON over Unix socket
-serde = { workspace = true }
-serde_json = { workspace = true }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # CLI
 clap = { version = "4", features = ["derive"] }
@@ -45,23 +44,40 @@ clap = { version = "4", features = ["derive"] }
 # Note what is NOT here: `sicompass`, the application crate. Linking it would
 # drag wasmtime, a bundled SQLite, a headless-Chromium driver, an IMAP client
 # and an SMTP client into a login screen. See sicompass-ui's Cargo.toml.
-sicompass-sdk = { workspace = true }
-sicompass-ui = { workspace = true }
+#
+# Not on crates.io: pinned by git, to a `rev` between releases and to
+# `tag = "vX.Y.Z"` at a release. Keep `sicompass-sdk` at the version
+# sicompass-ui requires, or cargo builds two copies of it.
+sicompass-sdk = "0.8.0"
+sicompass-ui = { git = "https://github.com/friendlyflow/sicompass-ui", rev = "8d58f6b27335472fa1eab65066a5a8c1002cacac" }
 
 # Wiping the password buffer once it has been handed to greetd. See the
 # module docs in src/provider.rs for what this does and does not buy.
-zeroize = { workspace = true }
+zeroize = "1"
 
 # `localtime_r`, for the clock's UTC offset.
-libc = { workspace = true }
+libc = "0.2"
 
 # Logging
 tracing          = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 [dev-dependencies]
-tempfile = { workspace = true }
+tempfile = "3"
 # Driving the real renderer headlessly in tests/greeter_ui.rs. `sdl3` comes in
 # through sicompass-ui already; this is only for the `Keycode`/`Mod` types the
 # key dispatcher takes.
-sdl3 = { workspace = true }
+sdl3 = "0.18"
+
+# Local overrides for working on this crate together with a sibling checkout.
+#
+# MUST STAY COMMENTED ON MAIN. CI and `nix build` check out this repo alone, so
+# a path to a sibling that is not there fails at manifest-parse time. Uncomment
+# while iterating, and re-comment before committing. Cargo still fetches the
+# git source it replaces, so the pinned `rev` has to exist on GitHub.
+#
+# [patch."https://github.com/friendlyflow/sicompass-ui"]
+# sicompass-ui = { path = "../sicompass-ui" }
+#
+# [patch.crates-io]
+# sicompass-sdk = { path = "../sicompass-plugin-sdk" }

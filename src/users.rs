@@ -206,7 +206,10 @@ UID_MAX  29999
             "/run/current-system/sw/bin/nologin",
             "/run/current-system/sw/bin/fish",
         );
-        assert_eq!(names(&parse_passwd(&interactive, 1000, 29999)), vec!["nico"]);
+        assert_eq!(
+            names(&parse_passwd(&interactive, 1000, 29999)),
+            vec!["nico"]
+        );
     }
 
     #[test]
