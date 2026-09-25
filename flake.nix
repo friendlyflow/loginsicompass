@@ -14,7 +14,7 @@
     # shell hook is long and subtle enough that a third copy would drift. The
     # crate itself comes in through Cargo.lock, not through this input.
     sicompass-ui = {
-      url = "github:friendlyflow/sicompass-ui";
+      url = "github:friendlyflow/sicompass-ui/v0.2.0";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.crane.follows = "crane";
     };
