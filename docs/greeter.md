@@ -222,6 +222,13 @@ Masking is the renderer's, not the greeter's: `<password>` already masks the
 drawn row, the per-keystroke spoken echo, the spoken context and in-field
 search, and `accesskit_sdl.rs` has tests forbidding the value ever being spoken.
 
+Orca hears every key, through desicompass's `org.freedesktop.a11y.KeyboardMonitor`,
+and by default echoes typed letters. The one thing that stops it is the focused
+object having the password-text role. So the renderer gives the row
+`Role::PasswordInput` whenever the cursor is on a `<password>` row, not only while
+it is being edited. Orca then reports it as `password text` and does not echo.
+Removing that role would make Orca read passwords aloud.
+
 The buffer is zeroized — bytes wiped, not just the length reset — on every path
 that ends a password edit. What that does *not* buy, stated so nobody assumes
 more: the live FFON element holds the typed value while the field is being
