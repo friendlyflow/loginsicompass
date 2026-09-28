@@ -57,10 +57,13 @@
             pname = "loginsicompass";
             # crane's default filter keeps Cargo and .rs files only. The font
             # license texts are installed below and read by tests/packaging.rs.
+            # The locale bundles are compiled in with include_str! (src/i18n.rs),
+            # so without them the build fails outright.
             src = lib.fileset.toSource {
               root = ./.;
               fileset = lib.fileset.unions [
                 (craneLib.fileset.commonCargoSources ./.)
+                ./locales
                 ./fonts
                 ./THIRD-PARTY-LICENSES.html
               ];
