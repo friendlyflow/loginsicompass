@@ -55,6 +55,18 @@ impl HostHooks for GreeterHooks {
             r.error_message = err;
         }
 
+        // A screen reader that quits by itself leaves a blind user with
+        // nothing and no way to say so. Its exit status (a signal, or a code)
+        // is the only trace of why, so it goes to the journal.
+        if let Some(status) = self
+            .screen_reader
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take_unexpected_exit()
+        {
+            tracing::warn!("the screen reader exited by itself ({status})");
+        }
+
         let Some(queue) = r.settings_queue.clone() else {
             return;
         };
