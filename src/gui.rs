@@ -58,14 +58,17 @@ impl HostHooks for GreeterHooks {
         // A screen reader that quits by itself leaves a blind user with
         // nothing and no way to say so. Its exit status (a signal, or a code)
         // is the only trace of why, so it goes to the journal.
-        if let Some(status) = self
-            .screen_reader
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .take_unexpected_exit()
-        {
+        let mut sr = self.screen_reader.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(status) = sr.take_unexpected_exit() {
             tracing::warn!("the screen reader exited by itself ({status})");
         }
+        // Orca looked for the focused window while this one was still
+        // registering, and found none. Now that it listens, hand it the
+        // focused row, so it is read without a key press.
+        if sr.take_ready() {
+            r.a11y_refocus_now = true;
+        }
+        drop(sr);
 
         let Some(queue) = r.settings_queue.clone() else {
             return;
