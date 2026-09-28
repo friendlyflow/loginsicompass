@@ -39,7 +39,7 @@ login-language-nl-BE = Nederlands (België)
 login-language-fr-BE = Français (Belgique)
 login-language-de-BE = Deutsch (Belgien)
 
-login-version = version
+login-version = version de loginsicompass
 login-screen-reader-failed = Impossible de démarrer le lecteur d'écran : { $error }
 login-setting-changed = { $setting } : { $value }
 login-on = activé

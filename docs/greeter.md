@@ -33,7 +33,7 @@ One provider, `LoginProvider`, whose `fetch()` is the whole screen:
 +R color scheme [dark]
 +R language [English]
 -  shoulder-surfing protection (blank screen)
--  version: 0.2.0                 ← loginsicompass's own version
+-  loginsicompass version: 0.2.0
 ```
 
 **Nothing sits under the password field.** greetd's prompt is *announced*, not
@@ -137,16 +137,31 @@ the whole page in it, and the screen reader by starting or stopping Orca
 (`--screen-reader-command`, `orca` on PATH by default, started with
 `--replace`).
 
-Orca is started **before the window**, so it has the best chance of being
-registered by the time the renderer shows it. That is not enough on its own.
-Orca switches the accessibility bus on early in its startup, but it only
-starts listening for events later. A focus event sent in between is lost, and
-Orca is left reading the one row it found at startup, deaf to the label change
-every cursor move makes. So whenever a screen reader has just started (at
-startup, from the checkbox, or when the adapter registers late), the greeter
-arms `AppRenderer::a11y_refocus_on_move`. The first cursor move after that
-toggles window focus, which Orca, listening by then, takes as "this is the
-focused row", and every move after that is spoken.
+Orca is started **before the window**. It looks for the focused window once,
+at the end of its startup, and at the login screen the greeter is usually not
+registered yet: Orca's log says "Unable to find active window from []", and it
+then says nothing but "Screen reader on". A focus event the window sends while
+Orca is still starting is lost too.
+
+So the greeter learns when Orca is ready. It hands Orca a socket of its own in
+`NOTIFY_SOCKET` (systemd's `sd_notify` protocol, which Orca speaks), and Orca
+sends `READY=1` there at the very end of its startup. The greeter answers with
+a window focus toggle (`AppRenderer::a11y_refocus_now`), and Orca reads the
+window name, the header and the focused row, with no key press. If Orca did
+find the window by itself, it reads them twice. Guessing whether it did would
+risk the silence coming back. `a11y_refocus_on_move` stays as the fallback for
+a screen reader that never reports ready: the first cursor move toggles focus
+instead.
+
+**Reproducing it nested** needs three things the login screen has and a desktop
+session does not. Unset `XDG_CURRENT_DESKTOP` (and the other session
+variables), or the desktop portal tries the desktop's own backend and SDL
+blocks on it before creating the window. Unset `DCONF_PROFILE`. And the
+accessibility bus launcher must use plain `dbus-daemon`: it picks `dbus-broker`
+whenever it runs inside a systemd *user* unit (`sd_pid_get_user_unit`), and
+dbus-broker then asks the desktop's systemd to start the registry, which fails
+("unit failed") and leaves Orca with no applications at all. The login screen
+runs in a system scope, so it never hits this.
 
 Unticking **screen reader** sends Orca `SIGTERM`, not `SIGKILL`. Orca answers
 that by saying "screen reader off" itself and exiting. A background thread

@@ -1424,7 +1424,7 @@ mod tests {
         );
         assert_eq!(
             l[c + 6],
-            format!("version: {}", env!("CARGO_PKG_VERSION")),
+            format!("loginsicompass version: {}", env!("CARGO_PKG_VERSION")),
             "the version is the last row"
         );
         assert_eq!(l.len(), c + 7);
