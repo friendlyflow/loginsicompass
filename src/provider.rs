@@ -127,6 +127,9 @@ pub struct LoginProvider {
     /// The last notice or failure. Shown in the header until the next attempt,
     /// so it can be read again.
     message: Option<String>,
+    /// The last prompt greetd sent for this user, so the same one asked again
+    /// after a wrong password is not announced over "Wrong password".
+    last_prompt: Option<String>,
 
     announcement: Option<String>,
     /// greetd is gone. Never cleared: nothing on this page can bring it back.
@@ -181,6 +184,7 @@ impl LoginProvider {
             password: Zeroizing::new(String::new()),
             phase: Phase::Idle,
             message: None,
+            last_prompt: None,
             announcement: None,
             fatal: None,
             greetd,
@@ -318,8 +322,14 @@ impl LoginProvider {
             match evt {
                 GreetdEvent::Prompt { secret, text } => {
                     self.phase = Phase::Prompting { secret };
-                    // Spoken, not shown: see the module docs.
-                    self.announcement = Some(text);
+                    // Spoken, not shown: see the module docs. But not the same
+                    // question twice: after a wrong password greetd asks
+                    // "Password:" again a moment later, and announcing it
+                    // replaced "Wrong password" before it was heard.
+                    if self.last_prompt.as_deref() != Some(text.as_str()) {
+                        self.announcement = Some(text.clone());
+                    }
+                    self.last_prompt = Some(text);
                 }
                 GreetdEvent::Notice { text, .. } => {
                     self.message = Some(text);
@@ -517,6 +527,13 @@ impl LoginProvider {
             t("login-setting-shoulder-surfing"),
             self.settings.shoulder_surfing_protection(),
         ));
+
+        // Last, like the version lines on the app's settings page.
+        out.push(FfonElement::Str(format!(
+            "{}: {}",
+            t("login-version"),
+            env!("CARGO_PKG_VERSION")
+        )));
         out
     }
 
@@ -587,6 +604,8 @@ impl Provider for LoginProvider {
                 }
                 self.selected_user = idx;
                 self.message = None;
+                // A new conversation: its first question is news again.
+                self.last_prompt = None;
                 self.dirty = true;
                 self.announcement = Some(t_with("login-announce-user", &[("name", value)]));
                 // greetd is configuring a session for the *previous* user.
@@ -944,7 +963,7 @@ mod tests {
         assert_eq!(labels(&inside), vec!["<checked>Desicompass", "COSMIC"]);
 
         p.pop_path();
-        assert_eq!(p.fetch().len(), 12, "back to the whole page");
+        assert_eq!(p.fetch().len(), 13, "back to the whole page");
     }
 
     #[test]
@@ -1314,6 +1333,60 @@ mod tests {
         );
     }
 
+    /// After a wrong password greetd asks "Password:" again a moment later.
+    /// Announcing that replaced "Wrong password" in the live region before the
+    /// screen reader had said it.
+    #[test]
+    fn the_same_prompt_asked_again_is_not_announced_over_the_failure() {
+        let secret = || Response::AuthMessage {
+            auth_message_type: AuthMessageType::Secret,
+            auth_message: "Password:".into(),
+        };
+        let (mut p, _server) = with_greetd(vec![
+            Step::new("create_session", secret()),
+            Step::new(
+                "wrong",
+                Response::Error {
+                    error_type: ErrorType::AuthError,
+                    description: "authentication error: PERM_DENIED".into(),
+                },
+            ),
+            Step::new("cancel_session", Response::Success),
+            Step::new("create_session", secret()),
+        ]);
+
+        drive(&mut p, Phase::Prompting { secret: true });
+        assert_eq!(p.take_announcement().as_deref(), Some("Password:"));
+
+        p.commit_edit("", &tags::format_password("wrong"));
+        let mut spoken = Vec::new();
+        let deadline = Instant::now() + Duration::from_secs(5);
+        // Until the retry's prompt has arrived.
+        while !(p.message.is_some() && p.phase == (Phase::Prompting { secret: true }))
+            && Instant::now() < deadline
+        {
+            p.tick();
+            if let Some(a) = p.take_announcement() {
+                spoken.push(a);
+            }
+            std::thread::sleep(Duration::from_millis(2));
+        }
+        assert_eq!(
+            p.phase,
+            Phase::Prompting { secret: true },
+            "the retry arrived"
+        );
+        assert!(
+            !spoken.iter().any(|a| a == "Password:"),
+            "the repeated prompt must not be announced: {spoken:?}"
+        );
+        assert_eq!(
+            p.take_error().as_deref(),
+            Some("Wrong password. Try again."),
+            "the header says what happened"
+        );
+    }
+
     #[test]
     fn a_failure_stays_in_the_header_until_the_next_attempt() {
         let mut p = two_users();
@@ -1349,7 +1422,12 @@ mod tests {
             l[c + 5],
             "<checkbox>shoulder-surfing protection (blank screen)"
         );
-        assert_eq!(l.len(), c + 6);
+        assert_eq!(
+            l[c + 6],
+            format!("version: {}", env!("CARGO_PKG_VERSION")),
+            "the version is the last row"
+        );
+        assert_eq!(l.len(), c + 7);
     }
 
     #[test]

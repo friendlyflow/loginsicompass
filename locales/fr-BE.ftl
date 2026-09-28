@@ -39,8 +39,7 @@ login-language-nl-BE = Nederlands (België)
 login-language-fr-BE = Français (Belgique)
 login-language-de-BE = Deutsch (Belgien)
 
-login-screen-reader-on = Lecteur d'écran activé
-login-screen-reader-off = Lecteur d'écran désactivé
+login-version = version
 login-screen-reader-failed = Impossible de démarrer le lecteur d'écran : { $error }
 login-setting-changed = { $setting } : { $value }
 login-on = activé

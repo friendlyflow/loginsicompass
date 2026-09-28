@@ -39,11 +39,21 @@ struct GreeterHooks {
 
 impl HostHooks for GreeterHooks {
     /// Called every frame (the greeter always has a settings queue), which is
-    /// also what makes it the place to tell the provider where the cursor is.
+    /// also what makes it the place to tell the provider where the cursor is,
+    /// and to keep its failure in the header.
     fn apply_pending_settings(&self, r: &mut AppRenderer, _initial: bool) {
         let id = r.current_id.as_slice();
         self.clock_focused
             .store(id == [0, self.clock_row], Ordering::Relaxed);
+
+        // The renderer clears the header whenever it rebuilds the list, which
+        // moving into or out of a group does. Put the failure back, after the
+        // key handling and in the same frame, so it stays on screen and the
+        // screen reader, which speaks a header error when it changes, does not
+        // hear it disappear and come back as a new one.
+        if let Some(err) = r.providers.get_mut(0).and_then(|p| p.take_error()) {
+            r.error_message = err;
+        }
 
         let Some(queue) = r.settings_queue.clone() else {
             return;
@@ -84,12 +94,14 @@ impl GreeterHooks {
             }
             KEY_SCREEN_READER => {
                 let mut sr = self.screen_reader.lock().unwrap_or_else(|e| e.into_inner());
+                // No announcement of our own either way: Orca says "screen
+                // reader on" when it starts and "screen reader off" when it is
+                // asked to quit, in a voice that is certainly there.
                 if value == "true" {
                     match sr.start() {
-                        // Orca takes a moment to come up and then says so
-                        // itself; the renderer gives it the focused row once
-                        // it registers.
-                        Ok(()) => r.announce_provider_line(t("login-screen-reader-on")),
+                        // It attaches before it listens; the first cursor move
+                        // tells it which row has focus.
+                        Ok(()) => r.a11y_refocus_on_move = true,
                         Err(e) => {
                             let error = e.to_string();
                             tracing::warn!("could not start the screen reader: {error}");
@@ -100,7 +112,6 @@ impl GreeterHooks {
                         }
                     }
                 } else {
-                    r.announce_provider_line(t("login-screen-reader-off"));
                     sr.stop();
                 }
             }
@@ -196,16 +207,19 @@ pub fn run(opts: &Options) -> Result<bool, String> {
 
     // Orca before the window: the renderer waits a moment for a screen reader
     // to register before showing it, and one that is already starting has the
-    // best chance of being there. One that arrives later is still given the
-    // focused row (see `AccessKitAdapter::take_late_registration`).
+    // best chance of being there. It still starts listening for events only
+    // after that, so the first cursor move re-announces focus (see
+    // `AppRenderer::a11y_refocus_on_move`, armed below).
     let mut screen_reader = ScreenReader::new(&opts.screen_reader_command);
-    if settings.screen_reader()
-        && let Err(e) = screen_reader.start()
-    {
-        tracing::warn!(
-            "could not start the screen reader {}: {e}",
-            opts.screen_reader_command.display()
-        );
+    let mut screen_reader_started = false;
+    if settings.screen_reader() {
+        match screen_reader.start() {
+            Ok(()) => screen_reader_started = true,
+            Err(e) => tracing::warn!(
+                "could not start the screen reader {}: {e}",
+                opts.screen_reader_command.display()
+            ),
+        }
     }
     let font_scale = settings.font_scale_value();
     let light = settings.color_scheme() == "light";
@@ -259,6 +273,7 @@ pub fn run(opts: &Options) -> Result<bool, String> {
         PaletteTheme::Dark
     };
     app.renderer.privacy_blank = privacy_blank;
+    app.renderer.a11y_refocus_on_move = screen_reader_started;
 
     // Land the cursor on the password field, the way the app lands a first-run
     // user on the onboarding line (`programs::focus_onboarding`).

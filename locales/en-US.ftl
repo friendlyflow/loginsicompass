@@ -46,8 +46,7 @@ login-language-nl-BE = Nederlands (België)
 login-language-fr-BE = Français (Belgique)
 login-language-de-BE = Deutsch (Belgien)
 
-login-screen-reader-on = Screen reader on
-login-screen-reader-off = Screen reader off
+login-version = version
 login-screen-reader-failed = Could not start the screen reader: { $error }
 login-setting-changed = { $setting }: { $value }
 login-on = on

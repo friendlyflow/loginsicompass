@@ -54,6 +54,7 @@ fn greeter_page() -> Vec<FfonElement> {
         FfonElement::Str(tags::format_checkbox(
             "shoulder-surfing protection (blank screen)",
         )),
+        FfonElement::Str("version: 0.2.0".to_owned()),
     ]
 }
 
@@ -139,7 +140,8 @@ fn the_page_reads_as_two_radio_groups_a_field_and_three_buttons() {
     assert!(l[9].starts_with("+R color scheme"), "got {:?}", l[9]);
     assert!(l[10].starts_with("+R language"), "got {:?}", l[10]);
     assert!(l[11].contains("shoulder-surfing"), "got {:?}", l[11]);
-    assert_eq!(l.len(), 12, "no extra rows: {l:?}");
+    assert_eq!(l[12], "- version: 0.2.0", "the version, last");
+    assert_eq!(l.len(), 13, "no extra rows: {l:?}");
 }
 
 /// Nothing sits between the password field and the buttons: greetd's prompt

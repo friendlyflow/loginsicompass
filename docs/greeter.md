@@ -33,6 +33,7 @@ One provider, `LoginProvider`, whose `fetch()` is the whole screen:
 +R color scheme [dark]
 +R language [English]
 -  shoulder-surfing protection (blank screen)
+-  version: 0.2.0                 ← loginsicompass's own version
 ```
 
 **Nothing sits under the password field.** greetd's prompt is *announced*, not
@@ -40,9 +41,13 @@ shown: with an ordinary PAM stack it is "Password:", which only repeats the
 field's label, and on an unusual one (a 2FA code) it is still heard. Failures
 and notices ("Wrong password. Try again.", PAM's own messages) go to the
 renderer's header error line through `take_error`. The provider returns the
-message rather than taking it, because the host clears the header on every
-rebuild and the clock rebuilds every second. The header speaks an error once,
-when it changes.
+message rather than taking it, because the renderer clears the header on every
+list rebuild, and the clock rebuilds every second. The renderer drains it after
+a rebuild, and `GreeterHooks` puts it back every frame after the keys are
+handled, since entering or leaving a group rebuilds too. The header speaks an
+error once, when it changes, so it must never flicker empty. greetd's second
+"Password:" after a wrong one is not announced, or it would replace "Wrong
+password" before the screen reader had said it.
 
 **The clock** shows seconds, except while the cursor is on it. There it moves
 on the minute: a focused row whose label changes is read out again, and a
@@ -133,11 +138,21 @@ the whole page in it, and the screen reader by starting or stopping Orca
 `--replace`).
 
 Orca is started **before the window**, so it has the best chance of being
-registered by the time the renderer shows it. Orca takes longer than the
-renderer's 400 ms wait, so when it arrives later the renderer gives it a focus
-event (`AccessKitAdapter::take_late_registration`), and it reads the focused
-row without waiting for a key press. The greeter stops Orca when it exits,
-before greetd hands the display to the session.
+registered by the time the renderer shows it. That is not enough on its own.
+Orca switches the accessibility bus on early in its startup, but it only
+starts listening for events later. A focus event sent in between is lost, and
+Orca is left reading the one row it found at startup, deaf to the label change
+every cursor move makes. So whenever a screen reader has just started (at
+startup, from the checkbox, or when the adapter registers late), the greeter
+arms `AppRenderer::a11y_refocus_on_move`. The first cursor move after that
+toggles window focus, which Orca, listening by then, takes as "this is the
+focused row", and every move after that is spoken.
+
+Unticking **screen reader** sends Orca `SIGTERM`, not `SIGKILL`. Orca answers
+that by saying "screen reader off" itself and exiting. A background thread
+reaps it and kills it only if it is still there after six seconds. When the
+greeter exits for a session, Orca is stopped at once and quietly, before greetd
+hands the display over.
 
 The strings are in `locales/*.ftl`, one per language the app offers, with
 `login-` keys because they share the renderer's localizer. A test fails if a
