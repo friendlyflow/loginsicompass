@@ -216,13 +216,21 @@ fn exchange(
             } => {
                 // An error answering a cancel is not worth reporting: the
                 // session is being thrown away regardless.
-                if !cancelling {
-                    let _ = events.send(GreetdEvent::Failed {
-                        auth: error_type == ErrorType::AuthError,
-                        text: description,
-                    });
+                if cancelling {
+                    return true;
                 }
-                return true;
+                let _ = events.send(GreetdEvent::Failed {
+                    auth: error_type == ErrorType::AuthError,
+                    text: description,
+                });
+                // A failed session stays open in greetd, and greetd refuses the
+                // next `create_session` while it is. Without this a wrong
+                // password left the greeter unable to log anyone in until it was
+                // restarted: the retry was refused, and the right password then
+                // had no prompt to answer. Cancelling here, before the next
+                // command is read off the channel, puts it ahead of whatever the
+                // UI does about the failure. (tuigreet and gtkgreet do the same.)
+                return exchange(client, Request::CancelSession, Origin::Auth, true, events);
             }
         }
     }
@@ -332,10 +340,11 @@ mod tests {
 
     #[test]
     fn wrong_password_is_an_auth_failure_not_a_dead_session() {
-        let (events, _) = run_script(
+        let (events, seen) = run_script(
             vec![
                 Step::new("create_session", secret("Password:")),
                 Step::new("wrong", auth_err("authentication error: PERM_DENIED")),
+                Step::new("cancel_session", Response::Success),
             ],
             vec![
                 GreetdCmd::Create {
@@ -359,6 +368,43 @@ mod tests {
             "got {:?}",
             events[1]
         );
+        // greetd refuses a new session while the failed one is open.
+        assert!(
+            seen.get(2).is_some_and(|s| s.contains("cancel_session")),
+            "a failure must be followed by a cancel: {seen:?}"
+        );
+    }
+
+    /// The cancel after a failure goes out before the UI's next command, so a
+    /// retry that the UI queues at once is never refused.
+    #[test]
+    fn the_cancel_after_a_failure_precedes_the_retry() {
+        let (events, seen) = run_script(
+            vec![
+                Step::new("create_session", secret("Password:")),
+                Step::new("wrong", auth_err("authentication error: PERM_DENIED")),
+                Step::new("cancel_session", Response::Success),
+                Step::new("create_session", secret("Password:")),
+            ],
+            vec![
+                GreetdCmd::Create {
+                    username: "nico".into(),
+                },
+                GreetdCmd::Answer {
+                    response: Some("wrong".into()),
+                },
+                GreetdCmd::Create {
+                    username: "nico".into(),
+                },
+            ],
+            3,
+        );
+        assert!(
+            matches!(events[2], GreetdEvent::Prompt { .. }),
+            "{events:?}"
+        );
+        assert!(seen[2].contains("cancel_session"), "{seen:?}");
+        assert!(seen[3].contains("create_session"), "{seen:?}");
     }
 
     /// The obligation from the module docs: an `info` message is acknowledged

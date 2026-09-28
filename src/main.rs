@@ -18,6 +18,8 @@ mod greetd;
 #[cfg(target_os = "linux")]
 mod gui;
 #[cfg(target_os = "linux")]
+mod i18n;
+#[cfg(target_os = "linux")]
 mod lastlogin;
 #[cfg(target_os = "linux")]
 mod power;
@@ -25,6 +27,8 @@ mod power;
 mod provider;
 #[cfg(target_os = "linux")]
 mod sessions;
+#[cfg(target_os = "linux")]
+mod settings;
 #[cfg(target_os = "linux")]
 mod supervisor;
 #[cfg(target_os = "linux")]
@@ -108,9 +112,19 @@ mod linux {
         #[arg(long, value_enum)]
         render_backend: Option<crate::Backend>,
 
-        /// Directory for `last.json` (the remembered user and session).
+        /// Directory for `last.json` (the remembered user and session) and
+        /// `settings.json` (the accessibility choices made on this screen).
         #[arg(long, default_value = "/var/lib/loginsicompass")]
         state_dir: std::path::PathBuf,
+
+        /// The system accessibility defaults, shared with the sicompass
+        /// session. Missing is fine.
+        #[arg(long, default_value = sicompass_ui::accessibility::DEFAULTS_PATH)]
+        defaults_file: std::path::PathBuf,
+
+        /// The screen reader to start. Found on PATH unless given as a path.
+        #[arg(long, default_value = sicompass_ui::accessibility::DEFAULT_SCREEN_READER)]
+        screen_reader_command: std::path::PathBuf,
 
         /// Extra directory to scan for session `.desktop` files. Repeatable.
         #[arg(long)]
@@ -165,6 +179,8 @@ mod linux {
             state_dir: args.state_dir.clone(),
             session_dirs: args.sessions_dir.clone(),
             extra_users: args.user_extra.clone(),
+            defaults_file: args.defaults_file.clone(),
+            screen_reader_command: args.screen_reader_command.clone(),
             power: crate::power::Commands::from_args(
                 &args.suspend_command,
                 &args.reboot_command,

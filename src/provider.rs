@@ -1,18 +1,24 @@
 //! The login screen, as a provider.
 //!
-//! Everything the greeter shows is an ordinary sicompass page: two `<radio>`
-//! groups, a `<password>` field and three `<button>` rows. That is the point of
-//! building the greeter on `sicompass-ui` rather than drawing it by hand — the
-//! masking, the screen-reader labels, the insert-mode editing and the
-//! announcement live region all already work, and none of it is reimplemented
-//! here.
+//! Everything the greeter shows is an ordinary sicompass page: `<radio>`
+//! groups, a `<password>` field, `<button>` rows and `<checkbox>` rows. That is
+//! the point of building the greeter on `sicompass-ui` rather than drawing it
+//! by hand — the masking, the screen-reader labels, the insert-mode editing and
+//! the announcement live region all already work, and none of it is
+//! reimplemented here.
 //!
 //! # There is no login button
 //!
 //! Pressing Enter in Insert mode on the password field submits, which is how
 //! every other `<input>` in the app commits. A separate button would be a
-//! second way to do one thing, and would put a row between the field and the
-//! error message it produces.
+//! second way to do one thing.
+//!
+//! # Nothing below the password field
+//!
+//! greetd's prompt ("Password:" from an ordinary PAM stack) only repeats the
+//! field's own label, so it is announced but not put on the page. Failures and
+//! notices go to the renderer's header error line through `take_error`, which
+//! speaks each one once and keeps it on screen until the next attempt.
 //!
 //! # Where the password lives
 //!
@@ -20,6 +26,13 @@
 //! worker. `fetch()` always emits an *empty* `<password></password>`: the live
 //! typed value belongs to the host's insert buffer, which is what blanks the
 //! field after every attempt without a special case here.
+//!
+//! # Settings
+//!
+//! The rows under the clock are the app's accessibility settings (all but the
+//! update check). A change is saved at once and queued for the host, which
+//! applies it to the renderer (`gui::GreeterHooks`): this provider never
+//! touches the renderer or the screen reader itself.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -27,20 +40,60 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use sicompass_sdk::ffon::FfonElement;
 use sicompass_sdk::provider::Provider;
 use sicompass_sdk::tags;
+use sicompass_ui::accessibility::{
+    COLOR_SCHEMES, FONT_SCALES, KEY_COLOR_SCHEME, KEY_FONT_SCALE, KEY_LANGUAGE, KEY_SCREEN_READER,
+    KEY_SHOULDER_SURFING, LANGUAGES,
+};
+use sicompass_ui::registry::SettingsQueue;
 use zeroize::Zeroizing;
 
 use crate::auth::{GreetdCmd, GreetdEvent, GreetdWorker};
+use crate::i18n::{t, t_with};
 use crate::lastlogin;
 use crate::power;
 use crate::sessions::SessionEntry;
+use crate::settings::Settings;
 use crate::users::UserEntry;
 
-/// Group labels. These are what `on_radio_change` is handed back, so they are
-/// matched on rather than re-derived.
-const GROUP_USER: &str = "User";
-const GROUP_SESSION: &str = "Session";
+/// The page's `<radio>` groups.
+///
+/// Identified by this rather than by their labels, which are translated: a
+/// language change made from inside the Language group must not leave the
+/// provider holding a path in the old language.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Group {
+    User,
+    Session,
+    FontScale,
+    ColorScheme,
+    Language,
+}
 
-const PASSWORD_LABEL: &str = "Password";
+impl Group {
+    const ALL: [Group; 5] = [
+        Group::User,
+        Group::Session,
+        Group::FontScale,
+        Group::ColorScheme,
+        Group::Language,
+    ];
+
+    /// The label, in the active language. It is also what `on_radio_change` is
+    /// handed back, so it is matched on rather than re-derived.
+    pub fn label(self) -> String {
+        t(match self {
+            Group::User => "login-group-user",
+            Group::Session => "login-group-session",
+            Group::FontScale => "login-setting-font-scale",
+            Group::ColorScheme => "login-setting-color-scheme",
+            Group::Language => "login-setting-language",
+        })
+    }
+
+    fn from_label(label: &str) -> Option<Group> {
+        Self::ALL.into_iter().find(|g| g.label() == label)
+    }
+}
 
 /// Where the conversation with greetd has got to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,8 +112,9 @@ pub enum Phase {
 }
 
 pub struct LoginProvider {
-    /// `[]` at the page, `["User"]` or `["Session"]` inside a group.
-    path: Vec<String>,
+    /// `[]` at the page, one entry inside a group. `None` for a segment that
+    /// named no group, so `pop_path` still pairs with `push_path`.
+    path: Vec<Option<Group>>,
 
     users: Vec<UserEntry>,
     sessions: Vec<SessionEntry>,
@@ -70,21 +124,28 @@ pub struct LoginProvider {
     password: Zeroizing<String>,
 
     phase: Phase,
-    /// greetd's own prompt text, shown verbatim when it sends one.
-    prompt: Option<String>,
-    /// The last notice or failure. Sticky: it stays until the next attempt, so
-    /// the user can arrow onto it and have it read again.
+    /// The last notice or failure. Shown in the header until the next attempt,
+    /// so it can be read again.
     message: Option<String>,
 
     announcement: Option<String>,
+    /// greetd is gone. Never cleared: nothing on this page can bring it back.
     fatal: Option<String>,
 
     greetd: Option<GreetdWorker>,
     last: lastlogin::Store,
     power: power::Commands,
 
-    clock: String,
-    clock_minute: u64,
+    settings: Settings,
+    /// Changes for the host to apply, as `(key, stored value)`.
+    queue: SettingsQueue,
+
+    /// The time the clock row shows, in Unix seconds. Kept as a time rather
+    /// than a string so a language change re-renders it in the new language.
+    clock: u64,
+    /// Set by the host while the cursor is on the clock row. See
+    /// [`refresh_clock`](Self::refresh_clock).
+    clock_focused: Arc<AtomicBool>,
     /// Set when only the clock changed: drives `needs_refresh`, never `tick`.
     cosmetic: bool,
     /// Set when a greetd event changed something: drives `tick`.
@@ -103,7 +164,9 @@ impl LoginProvider {
         last: lastlogin::Store,
         power: power::Commands,
         greetd: Option<GreetdWorker>,
+        settings: Settings,
     ) -> Self {
+        crate::i18n::init();
         let user_names: Vec<String> = users.iter().map(|u| u.name.clone()).collect();
         let session_ids: Vec<String> = sessions.iter().map(|s| s.id.clone()).collect();
         let selected_user = lastlogin::index_of(&user_names, last.user());
@@ -117,21 +180,25 @@ impl LoginProvider {
             selected_session,
             password: Zeroizing::new(String::new()),
             phase: Phase::Idle,
-            prompt: None,
             message: None,
             announcement: None,
             fatal: None,
             greetd,
             last,
             power,
-            clock: String::new(),
-            clock_minute: 0,
+            settings,
+            queue: Arc::new(std::sync::Mutex::new(Vec::new())),
+            clock: 0,
+            clock_focused: Arc::new(AtomicBool::new(false)),
             cosmetic: false,
             dirty: false,
             done: Arc::new(AtomicBool::new(false)),
         };
         me.refresh_clock();
         me.begin_for_selected_user();
+        // Whatever that reported is on the first page already; nothing needs
+        // rebuilding yet.
+        me.dirty = false;
         me
     }
 
@@ -145,6 +212,16 @@ impl LoginProvider {
         &self.done
     }
 
+    /// Shared with the host, which drains and applies it.
+    pub fn settings_queue(&self) -> &SettingsQueue {
+        &self.queue
+    }
+
+    /// Shared with the host, which sets it while the cursor is on the clock.
+    pub fn clock_focused_flag(&self) -> &Arc<AtomicBool> {
+        &self.clock_focused
+    }
+
     fn current_user(&self) -> Option<&UserEntry> {
         self.users.get(self.selected_user)
     }
@@ -153,16 +230,23 @@ impl LoginProvider {
         self.sessions.get(self.selected_session)
     }
 
+    /// Put a notice or failure in the header. `dirty` makes the next tick
+    /// rebuild, which is when the host reads `take_error`.
+    fn report(&mut self, text: String) {
+        self.message = Some(text);
+        self.dirty = true;
+    }
+
     /// Start (or restart) authentication for whoever is selected.
     fn begin_for_selected_user(&mut self) {
         let Some(user) = self.current_user().map(|u| u.name.clone()) else {
-            self.message = Some("No accounts to sign in to".to_owned());
+            self.report(t("login-no-accounts"));
             return;
         };
         let Some(greetd) = self.greetd.as_ref() else {
             // No socket: the UI still works, which is what makes it possible to
             // run the greeter nested for development.
-            self.message = Some("Not connected to greetd".to_owned());
+            self.report(t("login-not-connected"));
             return;
         };
         greetd.send(GreetdCmd::Create { username: user });
@@ -179,11 +263,11 @@ impl LoginProvider {
         let secret = std::mem::replace(&mut self.password, Zeroizing::new(String::new()));
 
         if !matches!(self.phase, Phase::Prompting { .. }) {
-            self.fail_to_submit("Not ready for a password yet");
+            self.fail_to_submit(t("login-not-ready"));
             return;
         }
         let Some(greetd) = self.greetd.as_ref() else {
-            self.fail_to_submit("Not connected to greetd");
+            self.fail_to_submit(t("login-not-connected"));
             return;
         };
         greetd.send(GreetdCmd::Answer {
@@ -191,22 +275,24 @@ impl LoginProvider {
         });
         self.phase = Phase::Waiting;
         self.message = None;
-        self.announcement = Some("Checking your password".to_owned());
+        self.dirty = true;
+        self.announcement = Some(t("login-checking"));
     }
 
     /// Report a submit that never left the building.
     ///
     /// Spoken as well as shown: a screen-reader user who pressed Enter and
-    /// heard nothing has no way to tell that from a slow PAM.
-    fn fail_to_submit(&mut self, why: &str) {
-        self.message = Some(why.to_owned());
-        self.announcement = Some(why.to_owned());
+    /// heard nothing has no way to tell that from a slow PAM. When the header
+    /// speaks it in the same frame, that replaces this rather than repeating it.
+    fn fail_to_submit(&mut self, why: String) {
+        self.announcement = Some(why.clone());
+        self.report(why);
     }
 
     /// greetd accepted the credentials; ask it to launch the chosen session.
     fn start_session(&mut self) {
         let Some(session) = self.current_session().cloned() else {
-            self.message = Some("No session to start".to_owned());
+            self.report(t("login-no-session"));
             self.phase = Phase::Idle;
             return;
         };
@@ -218,7 +304,7 @@ impl LoginProvider {
             env: session.env(),
         });
         self.phase = Phase::Starting;
-        self.announcement = Some(format!("Starting {}", session.name));
+        self.announcement = Some(t_with("login-starting", &[("session", &session.name)]));
     }
 
     /// Drain everything the worker has produced. Returns true if the page changed.
@@ -232,13 +318,10 @@ impl LoginProvider {
             match evt {
                 GreetdEvent::Prompt { secret, text } => {
                     self.phase = Phase::Prompting { secret };
-                    self.announcement = Some(text.clone());
-                    self.prompt = Some(text);
+                    // Spoken, not shown: see the module docs.
+                    self.announcement = Some(text);
                 }
-                GreetdEvent::Notice { text, is_error } => {
-                    if is_error {
-                        self.announcement = Some(text.clone());
-                    }
+                GreetdEvent::Notice { text, .. } => {
                     self.message = Some(text);
                 }
                 GreetdEvent::Authenticated => self.start_session(),
@@ -258,22 +341,19 @@ impl LoginProvider {
                 }
                 GreetdEvent::Failed { auth, text } => {
                     if auth {
-                        self.message = Some("Wrong password. Try again.".to_owned());
-                        self.announcement = Some("Wrong password. Try again.".to_owned());
+                        self.message = Some(t("login-wrong-password"));
                         // greetd keeps the conversation open after an auth
                         // error, but the simplest correct thing is to start the
                         // attempt over so we are never guessing which prompt is
                         // outstanding.
                         self.begin_for_selected_user();
                     } else {
-                        self.message = Some(text.clone());
-                        self.announcement = Some(text);
+                        self.message = Some(text);
                         self.phase = Phase::Idle;
                     }
                 }
                 GreetdEvent::Io { text } => {
-                    self.fatal = Some(text.clone());
-                    self.announcement = Some(text);
+                    self.fatal = Some(text);
                     self.phase = Phase::Idle;
                 }
             }
@@ -281,41 +361,110 @@ impl LoginProvider {
         changed
     }
 
+    /// Move the clock on. Returns true if the row's text changed.
+    ///
+    /// Every second, except while the cursor is on the clock row: a focused
+    /// row whose label changes is read out again, and a screen reader reading
+    /// the time aloud every second would drown everything else. There it moves
+    /// on the minute, which is as often as the old clock did.
     fn refresh_clock(&mut self) -> bool {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        let minute = now / 60;
-        if minute == self.clock_minute && !self.clock.is_empty() {
+        let stale = if self.clock_focused.load(Ordering::Relaxed) {
+            now / 60 != self.clock / 60
+        } else {
+            now != self.clock
+        };
+        if !stale {
             return false;
         }
-        self.clock_minute = minute;
-        self.clock = format_clock(now);
+        self.clock = now;
+        true
+    }
+
+    /// Record a settings change: save it, queue it for the host, and say what
+    /// changed. Returns false for a value the settings refuse.
+    fn change_setting(&mut self, key: &str, stored: &str) -> bool {
+        if !self.settings.set(key, stored) {
+            return false;
+        }
+        self.queue
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push((key.to_owned(), stored.to_owned()));
         true
     }
 
     // ---- Page construction -------------------------------------------------
 
-    fn radio_group(&self, label: &str, options: &[String], selected: usize) -> FfonElement {
-        let mut group = FfonElement::new_obj(format!("<radio>{label}"));
-        let obj = group.as_obj_mut().expect("new_obj is an Obj");
-        for (i, opt) in options.iter().enumerate() {
-            obj.push(FfonElement::Str(if i == selected {
-                tags::format_checked(opt)
-            } else {
-                opt.clone()
-            }));
+    /// A group's option labels and which one is selected.
+    fn options(&self, group: Group) -> (Vec<String>, usize) {
+        fn pick(all: &[&str], current: &str) -> usize {
+            all.iter().position(|v| *v == current).unwrap_or(0)
         }
-        group
+        match group {
+            Group::User => (
+                self.users.iter().map(|u| u.name.clone()).collect(),
+                self.selected_user,
+            ),
+            Group::Session => (
+                self.sessions.iter().map(|s| s.name.clone()).collect(),
+                self.selected_session,
+            ),
+            Group::FontScale => (
+                FONT_SCALES.iter().map(|s| s.to_string()).collect(),
+                pick(FONT_SCALES, &self.settings.font_scale()),
+            ),
+            Group::ColorScheme => (
+                COLOR_SCHEMES
+                    .iter()
+                    .map(|s| t(&format!("login-color-{s}")))
+                    .collect(),
+                pick(COLOR_SCHEMES, &self.settings.color_scheme()),
+            ),
+            Group::Language => (
+                LANGUAGES
+                    .iter()
+                    .map(|s| t(&format!("login-language-{s}")))
+                    .collect(),
+                pick(LANGUAGES, &self.settings.language()),
+            ),
+        }
     }
 
-    fn user_labels(&self) -> Vec<String> {
-        self.users.iter().map(|u| u.name.clone()).collect()
+    /// A group's options as rows, the selected one checked.
+    fn option_rows(&self, group: Group) -> Vec<FfonElement> {
+        let (labels, selected) = self.options(group);
+        labels
+            .into_iter()
+            .enumerate()
+            .map(|(i, l)| {
+                FfonElement::Str(if i == selected {
+                    tags::format_checked(&l)
+                } else {
+                    l
+                })
+            })
+            .collect()
     }
 
-    fn session_labels(&self) -> Vec<String> {
-        self.sessions.iter().map(|s| s.name.clone()).collect()
+    fn radio_group(&self, group: Group) -> FfonElement {
+        let mut obj = FfonElement::new_obj(format!("<radio>{}", group.label()));
+        let o = obj.as_obj_mut().expect("new_obj is an Obj");
+        for row in self.option_rows(group) {
+            o.push(row);
+        }
+        obj
+    }
+
+    fn checkbox(label: String, checked: bool) -> FfonElement {
+        FfonElement::Str(if checked {
+            tags::format_checkbox_checked(&label)
+        } else {
+            tags::format_checkbox(&label)
+        })
     }
 
     /// The whole page, at path `/`.
@@ -326,48 +475,48 @@ impl LoginProvider {
             // Degradation path: nothing in /etc/passwd we can offer. Let the
             // user type a name rather than showing an empty group.
             out.push(FfonElement::Str(format!(
-                "User: {}",
+                "{}: {}",
+                Group::User.label(),
                 tags::format_input("")
             )));
         } else {
-            out.push(self.radio_group(GROUP_USER, &self.user_labels(), self.selected_user));
+            out.push(self.radio_group(Group::User));
         }
 
         if !self.sessions.is_empty() {
-            out.push(self.radio_group(
-                GROUP_SESSION,
-                &self.session_labels(),
-                self.selected_session,
-            ));
+            out.push(self.radio_group(Group::Session));
         }
 
         // Always empty: the live value lives in the host's insert buffer.
         out.push(FfonElement::Str(format!(
-            "{PASSWORD_LABEL}: {}",
+            "{}: {}",
+            t("login-label-password"),
             tags::format_password("")
         )));
 
-        if let Some(p) = &self.prompt {
-            out.push(FfonElement::Str(p.clone()));
-        }
-        if let Some(m) = &self.message {
-            out.push(FfonElement::Str(m.clone()));
+        for (f, key) in [
+            (power::SUSPEND, "login-button-suspend"),
+            (power::REBOOT, "login-button-reboot"),
+            (power::POWEROFF, "login-button-poweroff"),
+        ] {
+            out.push(FfonElement::Str(format!("<button>{f}</button>{}", t(key))));
         }
 
-        out.push(FfonElement::Str(format!(
-            "<button>{}</button>Suspend",
-            power::SUSPEND
-        )));
-        out.push(FfonElement::Str(format!(
-            "<button>{}</button>Restart",
-            power::REBOOT
-        )));
-        out.push(FfonElement::Str(format!(
-            "<button>{}</button>Shut down",
-            power::POWEROFF
-        )));
+        out.push(FfonElement::Str(format_clock(self.clock)));
 
-        out.push(FfonElement::Str(self.clock.clone()));
+        // The settings, flat on the page rather than inside an object: one
+        // arrow key away, not one level down.
+        out.push(Self::checkbox(
+            t("login-setting-screen-reader"),
+            self.settings.screen_reader(),
+        ));
+        out.push(self.radio_group(Group::FontScale));
+        out.push(self.radio_group(Group::ColorScheme));
+        out.push(self.radio_group(Group::Language));
+        out.push(Self::checkbox(
+            t("login-setting-shoulder-surfing"),
+            self.settings.shoulder_surfing_protection(),
+        ));
         out
     }
 
@@ -380,6 +529,12 @@ impl LoginProvider {
         }
         i
     }
+
+    /// The index of the clock row within [`page`]: after the password field
+    /// and the three power buttons.
+    pub fn clock_row(&self) -> usize {
+        self.password_row() + 4
+    }
 }
 
 impl Provider for LoginProvider {
@@ -388,7 +543,7 @@ impl Provider for LoginProvider {
     }
 
     fn display_name(&self) -> String {
-        "Sign in".to_owned()
+        t("login-provider-name")
     }
 
     fn fetch(&mut self) -> Vec<FfonElement> {
@@ -397,41 +552,16 @@ impl Provider for LoginProvider {
         // copy of the page under one of its own descendants — which is why
         // `refresh_current_directory` keeps a list of providers that do that,
         // and why this one is deliberately not on it.
-        match self.path.first().map(String::as_str) {
-            Some(GROUP_USER) => {
-                let labels = self.user_labels();
-                labels
-                    .iter()
-                    .enumerate()
-                    .map(|(i, l)| {
-                        FfonElement::Str(if i == self.selected_user {
-                            tags::format_checked(l)
-                        } else {
-                            l.clone()
-                        })
-                    })
-                    .collect()
-            }
-            Some(GROUP_SESSION) => {
-                let labels = self.session_labels();
-                labels
-                    .iter()
-                    .enumerate()
-                    .map(|(i, l)| {
-                        FfonElement::Str(if i == self.selected_session {
-                            tags::format_checked(l)
-                        } else {
-                            l.clone()
-                        })
-                    })
-                    .collect()
-            }
-            _ => self.page(),
+        match self.path.first().copied().flatten() {
+            Some(g) => self.option_rows(g),
+            None if self.path.is_empty() => self.page(),
+            None => Vec::new(),
         }
     }
 
     fn push_path(&mut self, segment: &str) {
-        self.path.push(tags::strip_display(segment));
+        self.path
+            .push(Group::from_label(&tags::strip_display(segment)));
     }
 
     fn pop_path(&mut self) {
@@ -443,19 +573,22 @@ impl Provider for LoginProvider {
     }
 
     fn on_radio_change(&mut self, group: &str, value: &str) {
-        let group = tags::strip_display(group);
-        match group.as_str() {
-            GROUP_USER => {
-                let Some(idx) = self.users.iter().position(|u| u.name == value) else {
-                    return;
-                };
-                if idx == self.selected_user {
+        let Some(group) = Group::from_label(&tags::strip_display(group)) else {
+            return;
+        };
+        let (labels, selected) = self.options(group);
+        let Some(idx) = labels.iter().position(|l| l == value) else {
+            return;
+        };
+        match group {
+            Group::User => {
+                if idx == selected {
                     return;
                 }
                 self.selected_user = idx;
-                self.prompt = None;
                 self.message = None;
-                self.announcement = Some(format!("User {value}"));
+                self.dirty = true;
+                self.announcement = Some(t_with("login-announce-user", &[("name", value)]));
                 // greetd is configuring a session for the *previous* user.
                 // Cancel it before asking for another, or the new attempt is
                 // refused.
@@ -464,15 +597,47 @@ impl Provider for LoginProvider {
                 }
                 self.begin_for_selected_user();
             }
-            GROUP_SESSION => {
-                let Some(idx) = self.sessions.iter().position(|s| s.name == value) else {
-                    return;
-                };
+            Group::Session => {
                 self.selected_session = idx;
-                self.announcement = Some(format!("Session {value}"));
+                self.announcement = Some(t_with("login-announce-session", &[("name", value)]));
                 // No greetd traffic: the session only matters at start_session.
             }
-            _ => {}
+            Group::FontScale | Group::ColorScheme => {
+                let (key, stored) = if group == Group::FontScale {
+                    (KEY_FONT_SCALE, FONT_SCALES[idx])
+                } else {
+                    (KEY_COLOR_SCHEME, COLOR_SCHEMES[idx])
+                };
+                if self.change_setting(key, stored) {
+                    self.announcement = Some(t_with(
+                        "login-setting-changed",
+                        &[("setting", &group.label()), ("value", value)],
+                    ));
+                }
+            }
+            Group::Language => {
+                // No announcement here: the host switches the locale and
+                // announces in the new language, in the new voice.
+                self.change_setting(KEY_LANGUAGE, LANGUAGES[idx]);
+            }
+        }
+    }
+
+    fn on_checkbox_change(&mut self, label: &str, checked: bool) {
+        let label = tags::strip_display(label);
+        let value = if checked { "true" } else { "false" };
+        if label == t("login-setting-screen-reader") {
+            // Announced by the host once it knows whether the screen reader
+            // actually started.
+            self.change_setting(KEY_SCREEN_READER, value);
+        } else if label == t("login-setting-shoulder-surfing")
+            && self.change_setting(KEY_SHOULDER_SURFING, value)
+        {
+            let state = t(if checked { "login-on" } else { "login-off" });
+            self.announcement = Some(t_with(
+                "login-setting-changed",
+                &[("setting", &label), ("value", &state)],
+            ));
         }
     }
 
@@ -511,23 +676,26 @@ impl Provider for LoginProvider {
         };
         // Say it before spawning, so a screen reader gets the words out while
         // the screen is still up.
-        self.announcement = Some(line.to_owned());
+        self.announcement = Some(line);
         if power::Commands::ends_the_session(function_name)
             && let Some(g) = self.greetd.as_ref()
         {
             g.send(GreetdCmd::Cancel);
         }
         if let Err(e) = self.power.run(function_name) {
-            let text = format!("Could not {function_name}: {e}");
-            self.announcement = Some(text.clone());
-            self.message = Some(text);
+            let action = power::Commands::label(function_name).unwrap_or_default();
+            let error = e.to_string();
+            self.report(t_with(
+                "login-power-failed",
+                &[("action", &action), ("error", &error)],
+            ));
         }
     }
 
     fn tick(&mut self) -> bool {
         // The clock deliberately does NOT report through `tick`: a true tick
         // rebuilds the tree even in Insert mode, which would throw away a
-        // half-typed password once a minute. It goes through `needs_refresh`,
+        // half-typed password every second. It goes through `needs_refresh`,
         // which the host gates on not being in Insert mode.
         if self.refresh_clock() {
             self.cosmetic = true;
@@ -549,63 +717,62 @@ impl Provider for LoginProvider {
         self.announcement.take()
     }
 
+    /// Returned, not taken: the host clears its header on every rebuild, and
+    /// with a clock that rebuilds every second a taken error would be gone
+    /// after one. The host speaks a header error only when it changes, so
+    /// returning it each time does not repeat it.
     fn take_error(&mut self) -> Option<String> {
-        self.fatal.take()
+        self.fatal.clone().or_else(|| self.message.clone())
     }
 }
 
-/// `Monday 22 September, 21:04`, in local time.
+/// `Monday 28 September 2026, 21:04:05`, in local time and the active language.
 ///
 /// Hand-rolled rather than pulling `chrono` in: a greeter needs one format, and
 /// the date arithmetic below is the whole of it.
 fn format_clock(unix_secs: u64) -> String {
+    // 1970-01-01 was a Thursday, which is why this starts there.
     const DAYS: [&str; 7] = [
-        "Thursday",
-        "Friday",
-        "Saturday",
-        "Sunday",
-        "Monday",
-        "Tuesday",
-        "Wednesday",
-    ];
-    const MONTHS: [&str; 12] = [
-        "January",
-        "February",
-        "March",
-        "April",
-        "May",
-        "June",
-        "July",
-        "August",
-        "September",
-        "October",
-        "November",
-        "December",
+        "login-day-thursday",
+        "login-day-friday",
+        "login-day-saturday",
+        "login-day-sunday",
+        "login-day-monday",
+        "login-day-tuesday",
+        "login-day-wednesday",
     ];
 
-    let local = unix_secs as i64 + local_utc_offset_secs();
+    let local = unix_secs as i64 + local_utc_offset_secs(unix_secs as i64);
     let days = local.div_euclid(86_400);
     let secs_today = local.rem_euclid(86_400);
-    let (h, m) = (secs_today / 3600, (secs_today % 3600) / 60);
+    let (h, m, s) = (secs_today / 3600, (secs_today % 3600) / 60, secs_today % 60);
 
-    // 1970-01-01 was a Thursday, which is why DAYS starts there.
-    let weekday = DAYS[days.rem_euclid(7) as usize];
-    // The year is deliberately not shown: it is the one part of the date
-    // nobody reads off a login screen, and it makes the line longer to speak.
-    let (_year, month, day) = civil_from_days(days);
-    format!(
-        "{weekday} {day} {}, {h:02}:{m:02}",
-        MONTHS[(month - 1) as usize]
+    let weekday = t(DAYS[days.rem_euclid(7) as usize]);
+    let (year, month, day) = civil_from_days(days);
+    let month = t(&format!("login-month-{month}"));
+    t_with(
+        "login-clock",
+        &[
+            ("weekday", &weekday),
+            ("day", &day.to_string()),
+            ("month", &month),
+            ("year", &year.to_string()),
+            ("time", &format!("{h:02}:{m:02}:{s:02}")),
+        ],
     )
 }
 
-/// Seconds east of UTC, from the `TZ`-aware `localtime_r`.
-fn local_utc_offset_secs() -> i64 {
+/// Seconds east of UTC at `at`, from the `TZ`-aware `localtime_r`.
+///
+/// Asked for the moment being shown, not for a fixed one: the offset changes
+/// with daylight saving time, and asking at the epoch put the clock an hour
+/// behind all summer.
+fn local_utc_offset_secs(at: i64) -> i64 {
     // SAFETY: `localtime_r` writes into a `tm` we own and reads a `time_t` we
     // own; neither pointer escapes. `tm_gmtoff` is a GNU/BSD extension that
     // libc exposes on every platform this binary is built for (Linux only).
     unsafe {
-        let t: libc::time_t = 0;
+        let t = at as libc::time_t;
         let mut out: libc::tm = std::mem::zeroed();
         if libc::localtime_r(&t, &mut out).is_null() {
             return 0;
@@ -660,15 +827,19 @@ mod tests {
 
     /// A provider with no greetd behind it — enough for every page-shape test.
     fn offline(users: Vec<UserEntry>, sessions: Vec<SessionEntry>) -> LoginProvider {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = Box::leak(Box::new(tempfile::tempdir().unwrap()));
         LoginProvider::new(
             users,
             sessions,
             lastlogin::Store::load(dir.path()),
             power::Commands::default(),
             None,
+            Settings::load(dir.path(), &dir.path().join("no-defaults.json")),
         )
     }
+
+    const USER: &str = "User";
+    const SESSION: &str = "Session";
 
     fn two_users() -> LoginProvider {
         offline(
@@ -773,7 +944,7 @@ mod tests {
         assert_eq!(labels(&inside), vec!["<checked>Desicompass", "COSMIC"]);
 
         p.pop_path();
-        assert_eq!(p.fetch().len(), 8, "back to the whole page");
+        assert_eq!(p.fetch().len(), 12, "back to the whole page");
     }
 
     #[test]
@@ -788,7 +959,7 @@ mod tests {
     #[test]
     fn changing_the_session_announces_but_sends_nothing() {
         let mut p = two_users();
-        p.on_radio_change(GROUP_SESSION, "COSMIC");
+        p.on_radio_change(SESSION, "COSMIC");
         assert_eq!(p.selected_session, 1);
         assert_eq!(p.take_announcement().as_deref(), Some("Session COSMIC"));
     }
@@ -796,7 +967,7 @@ mod tests {
     #[test]
     fn an_unknown_option_is_ignored() {
         let mut p = two_users();
-        p.on_radio_change(GROUP_SESSION, "Plan 9");
+        p.on_radio_change(SESSION, "Plan 9");
         assert_eq!(p.selected_session, 0);
         p.on_radio_change("Nonsense", "nico");
         assert_eq!(p.selected_user, 0);
@@ -880,8 +1051,7 @@ mod tests {
     #[test]
     fn the_clock_refreshes_through_needs_refresh_never_through_tick() {
         let mut p = two_users();
-        p.clock_minute = 0; // force the minute to look stale
-        p.clock = "stale".to_owned();
+        p.clock = 0; // force the time to look stale
 
         assert!(!p.tick(), "a clock change must not report through tick()");
         assert!(p.needs_refresh(), "it must report through needs_refresh()");
@@ -890,15 +1060,52 @@ mod tests {
     }
 
     #[test]
-    fn the_clock_reads_as_a_date_and_time() {
+    fn the_clock_reads_as_a_full_date_and_a_time_with_seconds() {
         // 2026-09-22 was a Tuesday. Rendered in local time, so assert shape
         // rather than an exact string.
         let s = format_clock(1_758_534_000);
-        assert!(s.contains(','), "expected 'Day N Month, HH:MM', got {s}");
-        let (date, time) = s.split_once(", ").unwrap();
-        assert_eq!(date.split(' ').count(), 3, "weekday day month: {date}");
-        assert_eq!(time.len(), 5, "HH:MM: {time}");
-        assert!(!s.contains("2026"), "the year is deliberately omitted: {s}");
+        let (date, time) = s.split_once(", ").expect("'date, time'");
+        let words: Vec<&str> = date.split(' ').collect();
+        assert_eq!(words.len(), 4, "weekday day month year: {date}");
+        assert!(words[3] == "2025" || words[3] == "2026", "the year: {date}");
+        assert_eq!(time.len(), 8, "HH:MM:SS: {time}");
+        assert_eq!(time.matches(':').count(), 2, "HH:MM:SS: {time}");
+    }
+
+    /// The old clock asked for the UTC offset in 1970, which put it an hour
+    /// behind all summer in a zone with daylight saving time.
+    #[test]
+    fn the_utc_offset_is_taken_at_the_moment_shown() {
+        // Checked against the machine's own zone rather than by setting TZ,
+        // which would race with every other test reading the environment. On a
+        // machine in Central European Time (the developer's) this is a real
+        // check; in UTC (CI) there is no daylight saving time to get wrong.
+        let summer = 1_782_864_000; // 2026-07-01
+        let winter = 1_767_225_600; // 2026-01-01
+        if local_utc_offset_secs(winter) == 3600 {
+            assert_eq!(local_utc_offset_secs(summer), 7200);
+        }
+    }
+
+    #[test]
+    fn the_clock_ticks_every_second_but_only_every_minute_while_focused() {
+        let mut p = two_users();
+        let now = p.clock;
+
+        p.clock = now - 1;
+        assert!(p.refresh_clock(), "a second later, unfocused: moves");
+
+        p.clock_focused.store(true, Ordering::Relaxed);
+        // Same minute as now, one second behind.
+        p.clock = now - (now % 60).min(1);
+        if !now.is_multiple_of(60) {
+            assert!(
+                !p.refresh_clock(),
+                "focused, the row must not change within the minute"
+            );
+        }
+        p.clock = now - 60;
+        assert!(p.refresh_clock(), "focused, it still moves on the minute");
     }
 
     // ---- Against a real socket ----
@@ -924,6 +1131,7 @@ mod tests {
             lastlogin::Store::load(state.path()),
             power::Commands::default(),
             Some(worker),
+            Settings::load(state.path(), &state.path().join("no-defaults.json")),
         );
         std::mem::forget(state);
         (p, server)
@@ -979,7 +1187,9 @@ mod tests {
                     description: "authentication error: PERM_DENIED".into(),
                 },
             ),
-            // The provider starts over, so a second create_session follows.
+            // greetd keeps the failed session open until it is cancelled...
+            Step::new("cancel_session", Response::Success),
+            // ...and only then accepts the provider's fresh attempt.
             Step::new(
                 "create_session",
                 Response::AuthMessage {
@@ -1000,14 +1210,20 @@ mod tests {
         }
 
         assert_eq!(p.message.as_deref(), Some("Wrong password. Try again."));
+        assert_eq!(
+            p.take_error().as_deref(),
+            Some("Wrong password. Try again."),
+            "the failure goes to the header"
+        );
         assert!(!p.is_done());
         let seen = server.join().unwrap();
         assert_eq!(
             seen.len(),
-            3,
-            "a failed attempt must be restarted, not left half-open"
+            4,
+            "a failed attempt must be cancelled and restarted, not left half-open"
         );
-        assert!(seen[2].contains("create_session"));
+        assert!(seen[2].contains("cancel_session"), "{seen:?}");
+        assert!(seen[3].contains("create_session"), "{seen:?}");
     }
 
     #[test]
@@ -1031,12 +1247,190 @@ mod tests {
         ]);
 
         drive(&mut p, Phase::Prompting { secret: true });
-        p.on_radio_change(GROUP_USER, "guest");
+        p.on_radio_change(USER, "guest");
         drive(&mut p, Phase::Prompting { secret: true });
 
         assert_eq!(p.selected_user, 1);
         let seen = server.join().unwrap();
         assert!(seen[1].contains("cancel_session"), "got {}", seen[1]);
         assert!(seen[2].contains(r#""username":"guest""#), "got {}", seen[2]);
+    }
+
+    /// The bug a user hit at the real login screen: a wrong password, then the
+    /// right one, and no session. Driven against the stateful fake, which
+    /// refuses a new session while a failed one is still open, as greetd does.
+    #[test]
+    fn a_wrong_password_then_the_right_one_logs_in() {
+        let dir = Box::leak(Box::new(tempfile::tempdir().unwrap()));
+        let (listener, path) = bind(dir.path());
+        std::thread::spawn(move || {
+            let (mut conn, _) = listener.accept().unwrap();
+            let _ = crate::fakegreetd::converse(&mut conn, "hunter2");
+        });
+        let client = GreetdClient::connect_to(path.to_str().unwrap()).unwrap();
+        let mut p = LoginProvider::new(
+            vec![user("nico")],
+            vec![session("desicompass", "Desicompass")],
+            lastlogin::Store::load(dir.path()),
+            power::Commands::default(),
+            Some(GreetdWorker::spawn(client)),
+            Settings::load(dir.path(), &dir.path().join("no-defaults.json")),
+        );
+
+        drive(&mut p, Phase::Prompting { secret: true });
+        p.commit_edit("", &tags::format_password("wrong"));
+        drive(&mut p, Phase::Waiting);
+        drive(&mut p, Phase::Prompting { secret: true });
+        assert_eq!(
+            p.phase,
+            Phase::Prompting { secret: true },
+            "after a wrong password greetd must be asking again; message: {:?}",
+            p.message
+        );
+
+        p.commit_edit("", &tags::format_password("hunter2"));
+        drive(&mut p, Phase::Done);
+        assert!(p.is_done(), "the right password must start the session");
+    }
+
+    // ---- Nothing below the password field ----
+
+    #[test]
+    fn greetds_prompt_is_announced_but_not_put_on_the_page() {
+        let (mut p, _server) = with_greetd(vec![Step::new(
+            "create_session",
+            Response::AuthMessage {
+                auth_message_type: AuthMessageType::Secret,
+                auth_message: "Password:".into(),
+            },
+        )]);
+        drive(&mut p, Phase::Prompting { secret: true });
+        assert_eq!(p.take_announcement().as_deref(), Some("Password:"));
+        let l = labels(&p.fetch());
+        let below = &l[p.password_row() + 1];
+        assert!(
+            below.starts_with("<button>"),
+            "the row under the field must be a button, got {below:?}"
+        );
+    }
+
+    #[test]
+    fn a_failure_stays_in_the_header_until_the_next_attempt() {
+        let mut p = two_users();
+        p.commit_edit("", &tags::format_password("x"));
+        let first = p.take_error();
+        assert!(first.is_some(), "a refused submit must be reported");
+        assert_eq!(p.take_error(), first, "asking again must not lose it");
+        assert!(
+            !labels(&p.fetch()).iter().any(|l| Some(l) == first.as_ref()),
+            "it goes to the header, not onto the page"
+        );
+
+        p.on_radio_change(USER, "guest");
+        // Offline, so the new attempt reports "not connected"; what matters is
+        // that the old failure is gone.
+        assert_ne!(p.take_error(), first);
+    }
+
+    // ---- Settings ----
+
+    #[test]
+    fn the_settings_follow_the_clock_flat_on_the_page() {
+        let mut p = two_users();
+        let page = p.fetch();
+        let l = labels(&page);
+        let c = p.clock_row();
+        assert!(l[c].contains(':'), "the clock row: {}", l[c]);
+        assert_eq!(l[c + 1], "<checkbox checked>screen reader");
+        assert_eq!(l[c + 2], "<radio>font scale");
+        assert_eq!(l[c + 3], "<radio>color scheme");
+        assert_eq!(l[c + 4], "<radio>language");
+        assert_eq!(
+            l[c + 5],
+            "<checkbox>shoulder-surfing protection (blank screen)"
+        );
+        assert_eq!(l.len(), c + 6);
+    }
+
+    #[test]
+    fn the_language_options_are_each_in_their_own_language() {
+        let mut p = two_users();
+        p.push_path("<radio>language");
+        assert_eq!(
+            labels(&p.fetch()),
+            vec![
+                "<checked>English",
+                "Nederlands (België)",
+                "Français (Belgique)",
+                "Deutsch (Belgien)"
+            ]
+        );
+    }
+
+    fn drain(p: &LoginProvider) -> Vec<(String, String)> {
+        std::mem::take(&mut *p.settings_queue().lock().unwrap())
+    }
+
+    #[test]
+    fn choosing_a_font_scale_saves_queues_and_announces() {
+        let mut p = two_users();
+        p.on_radio_change("<radio>font scale", "2.00");
+        assert_eq!(drain(&p), vec![("fontScale".to_owned(), "2.00".to_owned())]);
+        assert_eq!(p.settings.font_scale(), "2.00");
+        assert_eq!(p.take_announcement().as_deref(), Some("font scale: 2.00"));
+    }
+
+    #[test]
+    fn choosing_a_color_scheme_stores_the_neutral_value() {
+        let mut p = two_users();
+        p.on_radio_change("color scheme", "light");
+        assert_eq!(
+            drain(&p),
+            vec![("colorScheme".to_owned(), "light".to_owned())]
+        );
+    }
+
+    #[test]
+    fn choosing_a_language_queues_its_locale_and_leaves_the_words_to_the_host() {
+        let mut p = two_users();
+        p.on_radio_change("language", "Nederlands (België)");
+        assert_eq!(drain(&p), vec![("language".to_owned(), "nl-BE".to_owned())]);
+        assert_eq!(p.take_announcement(), None);
+    }
+
+    #[test]
+    fn unticking_the_screen_reader_is_queued_for_the_host() {
+        let mut p = two_users();
+        p.on_checkbox_change("screen reader", false);
+        assert_eq!(
+            drain(&p),
+            vec![("screenReader".to_owned(), "false".to_owned())]
+        );
+        assert!(!p.settings.screen_reader());
+        let l = labels(&p.fetch());
+        assert!(l.contains(&"<checkbox>screen reader".to_owned()), "{l:?}");
+    }
+
+    #[test]
+    fn an_unknown_setting_value_changes_nothing() {
+        let mut p = two_users();
+        p.on_radio_change("font scale", "9.99");
+        p.on_checkbox_change("nonsense", true);
+        assert!(drain(&p).is_empty());
+    }
+
+    /// The path holds which group, not its label: a language change made from
+    /// inside a group must not strand `fetch` on a label that no longer exists.
+    #[test]
+    fn the_path_remembers_the_group_not_its_label() {
+        let mut p = two_users();
+        p.push_path("<radio>font scale");
+        assert_eq!(p.path, vec![Some(Group::FontScale)]);
+        assert_eq!(p.fetch().len(), FONT_SCALES.len());
+        p.pop_path();
+        p.push_path("<radio>no such group");
+        assert!(p.fetch().is_empty());
+        p.pop_path();
+        assert!(p.path.is_empty());
     }
 }

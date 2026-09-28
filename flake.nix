@@ -38,7 +38,7 @@
         {
           default = sicompass-ui.devShells.${system}.default.overrideAttrs (old: {
             buildInputs = old.buildInputs ++ (with pkgs; [
-              # The screen reader the greeter's accessibility toggle starts.
+              # The screen reader the greeter starts (see docs/greeter.md).
               orca
               # Test clients for a nested run inside desicompass.
               wayland-utils

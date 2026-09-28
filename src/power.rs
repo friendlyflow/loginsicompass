@@ -85,13 +85,25 @@ impl Commands {
 
     /// The spoken line for an action, said *before* it is spawned so a screen
     /// reader gets it out while the screen is still up.
-    pub fn announcement(which: &str) -> Option<&'static str> {
-        match which {
-            SUSPEND => Some("Suspending"),
-            REBOOT => Some("Restarting"),
-            POWEROFF => Some("Shutting down"),
-            _ => None,
-        }
+    pub fn announcement(which: &str) -> Option<String> {
+        let key = match which {
+            SUSPEND => "login-announce-suspend",
+            REBOOT => "login-announce-reboot",
+            POWEROFF => "login-announce-poweroff",
+            _ => return None,
+        };
+        Some(crate::i18n::t(key))
+    }
+
+    /// The button's label, in the active language.
+    pub fn label(which: &str) -> Option<String> {
+        let key = match which {
+            SUSPEND => "login-button-suspend",
+            REBOOT => "login-button-reboot",
+            POWEROFF => "login-button-poweroff",
+            _ => return None,
+        };
+        Some(crate::i18n::t(key))
     }
 
     /// Whether this action takes the machine down, and so should cancel the

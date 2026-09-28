@@ -46,8 +46,28 @@ fn greeter_page() -> Vec<FfonElement> {
         FfonElement::Str("<button>suspend</button>Suspend".to_owned()),
         FfonElement::Str("<button>reboot</button>Restart".to_owned()),
         FfonElement::Str("<button>poweroff</button>Shut down".to_owned()),
-        FfonElement::Str("Tuesday 22 September, 15:04".to_owned()),
+        FfonElement::Str("Tuesday 22 September 2026, 15:04:05".to_owned()),
+        FfonElement::Str(tags::format_checkbox_checked("screen reader")),
+        radio("font scale", &["1.00", "1.75", "2.50"], 1),
+        radio("color scheme", &["dark", "light"], 0),
+        radio("language", &["English", "Nederlands (België)"], 0),
+        FfonElement::Str(tags::format_checkbox(
+            "shoulder-surfing protection (blank screen)",
+        )),
     ]
+}
+
+fn radio(label: &str, options: &[&str], selected: usize) -> FfonElement {
+    let mut group = FfonElement::new_obj(format!("<radio>{label}"));
+    let g = group.as_obj_mut().unwrap();
+    for (i, o) in options.iter().enumerate() {
+        g.push(FfonElement::Str(if i == selected {
+            tags::format_checked(o)
+        } else {
+            (*o).to_owned()
+        }));
+    }
+    group
 }
 
 struct PageProvider(Vec<FfonElement>);
@@ -102,7 +122,32 @@ fn the_page_reads_as_two_radio_groups_a_field_and_three_buttons() {
     assert_eq!(l[4], "-b Restart");
     assert_eq!(l[5], "-b Shut down");
     assert!(l[6].starts_with("- Tuesday"), "got {:?}", l[6]);
-    assert_eq!(l.len(), 7, "no extra rows: {l:?}");
+    assert!(
+        l[6].ends_with("15:04:05"),
+        "the clock has seconds: {:?}",
+        l[6]
+    );
+
+    // The settings, flat on the page under the clock.
+    assert!(l[7].contains("screen reader"), "got {:?}", l[7]);
+    assert!(l[8].starts_with("+R font scale"), "got {:?}", l[8]);
+    assert!(
+        l[8].contains("1.75"),
+        "the group names its selection: {:?}",
+        l[8]
+    );
+    assert!(l[9].starts_with("+R color scheme"), "got {:?}", l[9]);
+    assert!(l[10].starts_with("+R language"), "got {:?}", l[10]);
+    assert!(l[11].contains("shoulder-surfing"), "got {:?}", l[11]);
+    assert_eq!(l.len(), 12, "no extra rows: {l:?}");
+}
+
+/// Nothing sits between the password field and the buttons: greetd's prompt
+/// is spoken, not shown, and failures go to the header.
+#[test]
+fn the_row_under_the_password_field_is_a_button() {
+    let r = renderer();
+    assert_eq!(rows(&r)[3], "-b Suspend");
 }
 
 #[test]

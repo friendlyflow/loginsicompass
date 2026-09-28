@@ -91,16 +91,33 @@ pub fn serve_forever(listener: &UnixListener, password: &str) {
     }
 }
 
-fn converse(conn: &mut UnixStream, password: &str) -> std::io::Result<()> {
+/// One connection's conversation, holding the one piece of state real greetd
+/// holds that matters to a greeter: whether a session is being configured.
+///
+/// Real greetd refuses `create_session` while one is, and a failed
+/// authentication leaves it open until the greeter cancels it. An earlier
+/// version of this fake accepted every `create_session`, which is how a greeter
+/// that never cancelled after a wrong password passed every nested test and
+/// then could not log anyone in at the real login screen.
+pub fn converse(conn: &mut UnixStream, password: &str) -> std::io::Result<()> {
+    let mut open = false;
     while let Some(line) = read_frame(conn) {
         let v: serde_json::Value = serde_json::from_str(&line).unwrap_or_default();
         let reply = match v["type"].as_str() {
-            Some("create_session") => Response::AuthMessage {
-                auth_message_type: crate::greetd::AuthMessageType::Secret,
-                auth_message: "Password:".to_owned(),
+            Some("create_session") if open => Response::Error {
+                error_type: crate::greetd::ErrorType::Error,
+                description: "a session is already being configured".to_owned(),
             },
+            Some("create_session") => {
+                open = true;
+                Response::AuthMessage {
+                    auth_message_type: crate::greetd::AuthMessageType::Secret,
+                    auth_message: "Password:".to_owned(),
+                }
+            }
             Some("post_auth_message_response") => match v["response"].as_str() {
                 Some(got) if got == password => Response::Success,
+                // The session stays open, as it does in greetd.
                 Some(_) => Response::Error {
                     error_type: crate::greetd::ErrorType::AuthError,
                     description: "authentication error: PERM_DENIED".to_owned(),
@@ -110,9 +127,13 @@ fn converse(conn: &mut UnixStream, password: &str) -> std::io::Result<()> {
             },
             Some("start_session") => {
                 tracing::info!("fake greetd: would start {}", v["cmd"]);
+                open = false;
                 Response::Success
             }
-            Some("cancel_session") => Response::Success,
+            Some("cancel_session") => {
+                open = false;
+                Response::Success
+            }
             _ => Response::Error {
                 error_type: crate::greetd::ErrorType::Error,
                 description: format!("unknown request: {line}"),

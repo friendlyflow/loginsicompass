@@ -24,13 +24,31 @@ One provider, `LoginProvider`, whose `fetch()` is the whole screen:
 +R User [nico]                    ← radio group, names its own selection
 +R Session [Desicompass]
 -i Password:                      ← cursor lands here at startup
--  <greetd's prompt>              ← only when greetd sent one
--  <last failure>                 ← sticky, so it can be re-read
 -b Suspend
 -b Restart
 -b Shut down
--  Tuesday 22 September, 15:04
+-  Monday 28 September 2026, 15:04:05
+-c screen reader                  ← the settings, flat under the clock
++R font scale [1.75]
++R color scheme [dark]
++R language [English]
+-  shoulder-surfing protection (blank screen)
 ```
+
+**Nothing sits under the password field.** greetd's prompt is *announced*, not
+shown: with an ordinary PAM stack it is "Password:", which only repeats the
+field's label, and on an unusual one (a 2FA code) it is still heard. Failures
+and notices ("Wrong password. Try again.", PAM's own messages) go to the
+renderer's header error line through `take_error`. The provider returns the
+message rather than taking it, because the host clears the header on every
+rebuild and the clock rebuilds every second. The header speaks an error once,
+when it changes.
+
+**The clock** shows seconds, except while the cursor is on it. There it moves
+on the minute: a focused row whose label changes is read out again, and a
+screen reader reading the time every second would drown everything else. The
+UTC offset is taken for the moment shown (it used to be taken for 1970, which
+put the clock an hour behind all summer).
 
 **There is no login button.** Enter in Insert mode on the password field
 submits, which is how every other `<input>` in the app commits. A button would
@@ -81,6 +99,74 @@ and the UI thread must keep drawing and keep talking to the screen reader.
 `info` and `error` auth messages are acknowledged **inside the worker**: that is
 a protocol obligation with no decision in it, and greetd waits forever without
 it.
+
+After any `error` response the worker also sends **`cancel_session`**, before it
+reads the UI's next command. greetd keeps a failed session open and refuses a
+new `create_session` while it is, so without the cancel a wrong password left
+the greeter unable to log anyone in until it was restarted: the retry was
+refused, and the right password then had no prompt to answer. The fake greetd
+(`fakegreetd::converse`, used by `examples/fake-greetd.rs` and by
+`a_wrong_password_then_the_right_one_logs_in`) refuses a second session the
+same way, so a nested run reproduces it.
+
+## Settings and the screen reader
+
+The rows under the clock are the app's accessibility settings, minus the
+update check: screen reader, font scale, color scheme, language and
+shoulder-surfing protection. They use the app's own keys and wording.
+
+- **Saved** to `<state-dir>/settings.json` (`/var/lib/loginsicompass`), a flat
+  object holding only what was chosen on this screen.
+- **Under that**, the system defaults in `/etc/sicompass/accessibility.json`
+  (`--defaults-file`), which sicompass reads too. See [System
+  defaults](#system-defaults).
+- **Under that**, the built-in defaults. They are the app's, except that
+  `screenReader` is **on**: the first time the greeter runs nobody has chosen
+  anything, and a blind user cannot turn on a screen reader they cannot hear.
+  Once someone unticks it, that is saved and the greeter stays quiet.
+
+The provider saves a change and queues it. `gui::GreeterHooks` applies it:
+the display settings through `sicompass_ui::accessibility::apply_display` (the
+same code the app uses), the language by switching the locale and rebuilding
+the whole page in it, and the screen reader by starting or stopping Orca
+(`--screen-reader-command`, `orca` on PATH by default, started with
+`--replace`).
+
+Orca is started **before the window**, so it has the best chance of being
+registered by the time the renderer shows it. Orca takes longer than the
+renderer's 400 ms wait, so when it arrives later the renderer gives it a focus
+event (`AccessKitAdapter::take_late_registration`), and it reads the focused
+row without waiting for a key press. The greeter stops Orca when it exits,
+before greetd hands the display to the session.
+
+The strings are in `locales/*.ftl`, one per language the app offers, with
+`login-` keys because they share the renderer's localizer. A test fails if a
+key is missing from any of the four.
+
+## System defaults
+
+`/etc/sicompass/accessibility.json` holds the machine's accessibility
+defaults. Both the greeter and sicompass read it, and both use it only for what
+nobody has chosen: the greeter's own choices and each user's `settings.json`
+win over it. Every key is optional.
+
+| Key | Values |
+|---|---|
+| `screenReader` | `true`, `false` |
+| `fontScale` | `"1.00"` to `"2.50"` in steps of 0.25 |
+| `colorScheme` | `"dark"`, `"light"` |
+| `language` | `"en-US"`, `"nl-BE"`, `"fr-BE"`, `"de-BE"` |
+| `shoulderSurfingProtection` | `true`, `false` |
+
+On NixOS, `services.desicompass.accessibility.*` writes it. Anywhere else, write
+it by hand (or ship it in the distribution's package):
+
+```json
+{ "screenReader": true, "fontScale": "2.00", "language": "nl-BE" }
+```
+
+A distribution package also has to create `/var/lib/loginsicompass` owned by
+the greeter user, and install Orca and speech-dispatcher.
 
 ## Enumeration
 
@@ -155,6 +241,14 @@ GREETD_SOCK=/tmp/greetd.sock cargo run --manifest-path ../desicompass/Cargo.toml
   --startup-cmd "$PWD/target/debug/loginsicompass --state-dir /tmp/lsc-state"
 ```
 
+A fresh `--state-dir` is a first run, so the greeter starts Orca, and nested it
+shares your desktop's session bus: `orca --replace` takes over the Orca you may
+already be running, and stopping it when the greeter exits leaves you without
+one. If you rely on a screen reader, add `--screen-reader-command true` (a
+command that exits at once) and keep your own. To test the greeter's own Orca,
+also pass a `--defaults-file` of your own, so the run does not read
+`/etc/sicompass/accessibility.json`.
+
 To prove the fallback rather than assume it, add
 `SICOMPASS_FORCE_VULKAN_FAILURE=1` (debug builds only) and watch the log go
 `starting the gpu greeter` → `falling back to the software renderer` →
@@ -194,3 +288,8 @@ the `loginsicompass` package from this repo's flake
   of `$HOME`.
 - **No `--user` or `--command`.** Those flags are what made the old greeter
   authenticate `nobody` and then launch `false`.
+- **Orca and speech-dispatcher.** `services.orca.enable` (which brings
+  speech-dispatcher), and `--screen-reader-command` with Orca's store path, so
+  the greeter does not depend on its `PATH`. The greeter user also needs sound:
+  speech-dispatcher plays through the PipeWire of the greeter's own logind
+  session.
