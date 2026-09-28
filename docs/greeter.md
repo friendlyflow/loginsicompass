@@ -225,9 +225,12 @@ search, and `accesskit_sdl.rs` has tests forbidding the value ever being spoken.
 Orca hears every key, through desicompass's `org.freedesktop.a11y.KeyboardMonitor`,
 and by default echoes typed letters. The one thing that stops it is the focused
 object having the password-text role. So the renderer gives the row
-`Role::PasswordInput` whenever the cursor is on a `<password>` row, not only while
-it is being edited. Orca then reports it as `password text` and does not echo.
-Removing that role would make Orca read passwords aloud.
+`Role::PasswordInput` while a password is being typed (Insert mode on a
+`<password>` row), and Orca does not echo. Only then: resting on the row, Orca
+would add "password text" to the row's own "dash i Password:". Nothing reaches the
+field outside Insert mode, and the role change reaches Orca a frame after Insert
+mode starts, before a first character can be typed. Removing that role would make
+Orca read passwords aloud.
 
 The buffer is zeroized — bytes wiped, not just the length reset — on every path
 that ends a password edit. What that does *not* buy, stated so nobody assumes
