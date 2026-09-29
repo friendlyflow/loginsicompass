@@ -217,7 +217,11 @@ pub fn run(opts: &Options) -> Result<bool, String> {
 
     // The language first, so nothing is ever shown or spoken in the wrong one.
     crate::i18n::init();
-    let settings = Settings::load(&opts.state_dir, &opts.defaults_file);
+    let shared_dir = std::path::Path::new(sicompass_ui::accessibility::SHARED_PATH)
+        .parent()
+        .expect("SHARED_PATH names a file in a directory");
+    let mut settings = Settings::load(shared_dir, &opts.defaults_file);
+    settings.migrate_from(&opts.state_dir.join(crate::settings::OLD_FILE_NAME));
     sicompass_sdk::localize::set_locale(&settings.language());
 
     // Orca before the window: the renderer waits a moment for a screen reader

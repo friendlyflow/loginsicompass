@@ -78,7 +78,7 @@ must not depend on `sicompass-builtins`, `sicompass-updater`, `wasmtime` or
 
 | | |
 |---|---|
-| `registry::HostHooks` | settings, the updater, per-tab provider sets, and when to stop. Seven methods, all defaulting to a no-op — which is correct for the greeter. |
+| `registry::HostHooks` | settings, the updater, per-tab provider sets, and when to stop. Eight methods, all defaulting to a no-op — which is correct for the greeter. |
 | `http::register_body_fetcher` | an HTTP client for `<link>` and URL `<image>` values. Unregistered, a link reports that it cannot be followed and the node still renders. |
 | `app_state::AppConfig` | everything the window used to hardcode. `Default` reproduces the application exactly, and a test asserts it. |
 
@@ -120,8 +120,15 @@ The rows under the clock are the app's accessibility settings, minus the
 update check: screen reader, font scale, color scheme, language and
 shoulder-surfing protection. They use the app's own keys and wording.
 
-- **Saved** to `<state-dir>/settings.json` (`/var/lib/loginsicompass`), a flat
-  object holding only what was chosen on this screen.
+- **Saved** to `/var/lib/sicompass/accessibility.json`, a flat object holding
+  only what was chosen. It is one object for the whole machine, shared both
+  ways with every desicompass session: sicompass and desicompass-superkey read
+  and write it too. What is chosen here is what the session starts with, and
+  what is chosen in a session is what this screen shows next time. The NixOS
+  module makes the directory writable by a `sicompass-a11y` group holding the
+  greeter and the users (setgid, and writers replace the file by a rename).
+  Choices the greeter kept in `<state-dir>/settings.json` before this are moved
+  over once, while the shared object has none.
 - **Under that**, the system defaults in `/etc/sicompass/accessibility.json`
   (`--defaults-file`), which sicompass reads too. See [System
   defaults](#system-defaults).
@@ -129,6 +136,13 @@ shoulder-surfing protection. They use the app's own keys and wording.
   `screenReader` is **on**: the first time the greeter runs nobody has chosen
   anything, and a blind user cannot turn on a screen reader they cannot hear.
   Once someone unticks it, that is saved and the greeter stays quiet.
+
+Both files are read through `sicompass_ui::accessibility::SharedAccessibility`,
+the same code the session uses. A save is an atomic rename under a lock, and
+the provider polls both files from `tick()`, so a change made while the greeter
+runs (an admin's `nixos-rebuild switch` rewriting `/etc`) is applied and shown
+as if it had been chosen here. It is applied as a cosmetic refresh, like the
+clock, so it never throws away a half-typed password.
 
 The provider saves a change and queues it. `gui::GreeterHooks` applies it:
 the display settings through `sicompass_ui::accessibility::apply_display` (the
@@ -176,9 +190,10 @@ key is missing from any of the four.
 ## System defaults
 
 `/etc/sicompass/accessibility.json` holds the machine's accessibility
-defaults. Both the greeter and sicompass read it, and both use it only for what
-nobody has chosen: the greeter's own choices and each user's `settings.json`
-win over it. Every key is optional.
+defaults. The greeter, sicompass and desicompass-superkey read it, and all
+use it only for what nobody has chosen: anything saved in the shared object,
+`/var/lib/sicompass/accessibility.json`, wins over it. Every key is
+optional, and nothing writes it at runtime.
 
 | Key | Values |
 |---|---|
@@ -196,7 +211,8 @@ it by hand (or ship it in the distribution's package):
 ```
 
 A distribution package also has to create `/var/lib/loginsicompass` owned by
-the greeter user, and install Orca and speech-dispatcher.
+the greeter user, and `/var/lib/sicompass` (mode 2775) owned by a group holding
+the greeter and the users, and install Orca and speech-dispatcher.
 
 ## Enumeration
 

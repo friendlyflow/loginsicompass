@@ -52,7 +52,7 @@ sicompass-sdk = "0.9.0"
 # rev, not a tag: no v0.2.1 has been cut yet for the accessibility.rs /
 # late-registration additions this depends on. Move to a tag at the next
 # sicompass-ui release.
-sicompass-ui = { git = "https://github.com/friendlyflow/sicompass-ui", rev = "fd0f6d1d44600789d2b01c3a093e1adc39ead985" }
+sicompass-ui = { git = "https://github.com/friendlyflow/sicompass-ui", rev = "5729045cf6f5b48e7c1b5bbecdf71025e5075d32" }
 
 # Wiping the password buffer once it has been handed to greetd. See the
 # module docs in src/provider.rs for what this does and does not buy.

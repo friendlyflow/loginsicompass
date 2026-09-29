@@ -719,6 +719,16 @@ impl Provider for LoginProvider {
         if self.refresh_clock() {
             self.cosmetic = true;
         }
+        // A settings file changed under us (an admin's rebuild rewrote /etc):
+        // the host applies it like a choice made here, and the page shows it.
+        // Cosmetic, like the clock, so a half-typed password survives it.
+        for (key, value) in self.settings.poll() {
+            self.queue
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push((key.to_owned(), value));
+            self.cosmetic = true;
+        }
         let changed = self.drain_greetd();
         self.dirty |= changed;
         std::mem::take(&mut self.dirty)
