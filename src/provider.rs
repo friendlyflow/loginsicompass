@@ -13,12 +13,17 @@
 //! every other `<input>` in the app commits. A separate button would be a
 //! second way to do one thing.
 //!
-//! # Nothing below the password field
+//! # Only the show-password box below the password field
 //!
 //! greetd's prompt ("Password:" from an ordinary PAM stack) only repeats the
 //! field's own label, so it is announced but not put on the page. Failures and
 //! notices go to the renderer's header error line through `take_error`, which
 //! speaks each one once and keeps it on screen until the next attempt.
+//!
+//! The "show password" box under the field is queued for the host like a
+//! setting (`KEY_SHOW_PASSWORD`), which sets the renderer's
+//! `password_revealed`. The field stays a `<password>`: only the masking is
+//! the renderer's to drop. It is never saved.
 //!
 //! # Where the password lives
 //!
@@ -54,6 +59,10 @@ use crate::power;
 use crate::sessions::SessionEntry;
 use crate::settings::Settings;
 use crate::users::UserEntry;
+
+/// The queue key for the "show password" box. Not an accessibility setting:
+/// it goes to the host, never into the saved settings.
+pub const KEY_SHOW_PASSWORD: &str = "showPassword";
 
 /// The page's `<radio>` groups.
 ///
@@ -122,6 +131,8 @@ pub struct LoginProvider {
     selected_session: usize,
 
     password: Zeroizing<String>,
+    /// The "show password" box. Starts unticked every time the greeter does.
+    show_password: bool,
 
     phase: Phase,
     /// The last notice or failure. Shown in the header until the next attempt,
@@ -182,6 +193,7 @@ impl LoginProvider {
             selected_user,
             selected_session,
             password: Zeroizing::new(String::new()),
+            show_password: false,
             phase: Phase::Idle,
             message: None,
             last_prompt: None,
@@ -503,6 +515,7 @@ impl LoginProvider {
             t("login-label-password"),
             tags::format_password("")
         )));
+        out.push(Self::checkbox(t("login-show-password"), self.show_password));
 
         for (f, key) in [
             (power::SUSPEND, "login-button-suspend"),
@@ -547,10 +560,10 @@ impl LoginProvider {
         i
     }
 
-    /// The index of the clock row within [`page`]: after the password field
-    /// and the three power buttons.
+    /// The index of the clock row within [`page`]: after the password field,
+    /// the show-password box and the three power buttons.
     pub fn clock_row(&self) -> usize {
-        self.password_row() + 4
+        self.password_row() + 5
     }
 }
 
@@ -645,7 +658,20 @@ impl Provider for LoginProvider {
     fn on_checkbox_change(&mut self, label: &str, checked: bool) {
         let label = tags::strip_display(label);
         let value = if checked { "true" } else { "false" };
-        if label == t("login-setting-screen-reader") {
+        if label == t("login-show-password") {
+            // Straight onto the queue, not through `change_setting`: the host
+            // reveals the field, and nothing is saved.
+            self.show_password = checked;
+            self.queue
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .push((KEY_SHOW_PASSWORD.to_owned(), value.to_owned()));
+            let state = t(if checked { "login-on" } else { "login-off" });
+            self.announcement = Some(t_with(
+                "login-setting-changed",
+                &[("setting", &label), ("value", &state)],
+            ));
+        } else if label == t("login-setting-screen-reader") {
             // Announced by the host once it knows whether the screen reader
             // actually started.
             self.change_setting(KEY_SCREEN_READER, value);
@@ -973,7 +999,7 @@ mod tests {
         assert_eq!(labels(&inside), vec!["<checked>Desicompass", "COSMIC"]);
 
         p.pop_path();
-        assert_eq!(p.fetch().len(), 13, "back to the whole page");
+        assert_eq!(p.fetch().len(), 14, "back to the whole page");
     }
 
     #[test]
@@ -1322,7 +1348,7 @@ mod tests {
         assert!(p.is_done(), "the right password must start the session");
     }
 
-    // ---- Nothing below the password field ----
+    // ---- Only the show-password box below the password field ----
 
     #[test]
     fn greetds_prompt_is_announced_but_not_put_on_the_page() {
@@ -1336,10 +1362,14 @@ mod tests {
         drive(&mut p, Phase::Prompting { secret: true });
         assert_eq!(p.take_announcement().as_deref(), Some("Password:"));
         let l = labels(&p.fetch());
-        let below = &l[p.password_row() + 1];
         assert!(
-            below.starts_with("<button>"),
-            "the row under the field must be a button, got {below:?}"
+            !l.iter().any(|s| s.contains("Password:") && !tags::has_password(s)),
+            "greetd's prompt must not be on the page: {l:?}"
+        );
+        let below = &l[p.password_row() + 1];
+        assert_eq!(
+            below, "<checkbox>show password",
+            "the row under the field must be the show-password box"
         );
     }
 
@@ -1413,6 +1443,48 @@ mod tests {
         // Offline, so the new attempt reports "not connected"; what matters is
         // that the old failure is gone.
         assert_ne!(p.take_error(), first);
+    }
+
+    // ---- Show password ----
+
+    #[test]
+    fn the_show_password_box_sits_under_the_field_unticked() {
+        let mut p = two_users();
+        let l = labels(&p.fetch());
+        assert_eq!(l[p.password_row() + 1], "<checkbox>show password");
+        assert!(l[p.password_row() + 2].starts_with("<button>"), "{l:?}");
+    }
+
+    #[test]
+    fn ticking_show_password_tells_the_host_and_keeps_the_field_a_password() {
+        let mut p = two_users();
+        p.on_checkbox_change("show password", true);
+        assert_eq!(
+            drain(&p),
+            vec![("showPassword".to_owned(), "true".to_owned())]
+        );
+        assert_eq!(
+            p.take_announcement().as_deref(),
+            Some("show password: on")
+        );
+        let page = p.fetch();
+        let l = labels(&page);
+        assert_eq!(l[p.password_row() + 1], "<checkbox checked>show password");
+        assert!(
+            tags::has_password(&l[p.password_row()]),
+            "the field stays a password; revealing it is the renderer's: {}",
+            l[p.password_row()]
+        );
+
+        p.on_checkbox_change("show password", false);
+        assert_eq!(
+            drain(&p),
+            vec![("showPassword".to_owned(), "false".to_owned())]
+        );
+        assert_eq!(
+            labels(&p.fetch())[p.password_row() + 1],
+            "<checkbox>show password"
+        );
     }
 
     // ---- Settings ----

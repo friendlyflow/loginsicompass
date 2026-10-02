@@ -9,6 +9,7 @@ login-provider-name = Sign in
 login-group-user = User
 login-group-session = Session
 login-label-password = Password
+login-show-password = show password
 
 login-button-suspend = Suspend
 login-button-reboot = Restart

@@ -15,6 +15,7 @@ is one list:
 User          your account, chosen from a list
 Session       Desicompass, or any other desktop you have installed
 Password      the cursor starts here, Enter logs you in
+show password tick it before you type to see what you type
 Suspend
 Restart
 Shut down

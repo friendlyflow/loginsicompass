@@ -19,7 +19,7 @@ use sicompass_ui::registry::HostHooks;
 use crate::auth::GreetdWorker;
 use crate::greetd::GreetdClient;
 use crate::i18n::{t, t_with};
-use crate::provider::LoginProvider;
+use crate::provider::{KEY_SHOW_PASSWORD, LoginProvider};
 use crate::settings::Settings;
 use crate::{lastlogin, power, sessions, users};
 
@@ -130,6 +130,9 @@ impl GreeterHooks {
                     sr.stop();
                 }
             }
+            // The field stays a `<password>`; the renderer only stops
+            // masking it, on screen and to the screen reader.
+            KEY_SHOW_PASSWORD => r.password_revealed = value == "true",
             _ => {}
         }
     }

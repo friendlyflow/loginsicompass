@@ -24,6 +24,7 @@ One provider, `LoginProvider`, whose `fetch()` is the whole screen:
 +R User [nico]                    ← radio group, names its own selection
 +R Session [Desicompass]
 -i Password:                      ← cursor lands here at startup
+-c show password                  ← not saved, see The password
 -b Suspend
 -b Restart
 -b Shut down
@@ -36,7 +37,7 @@ One provider, `LoginProvider`, whose `fetch()` is the whole screen:
 -  loginsicompass version: 0.2.0
 ```
 
-**Nothing sits under the password field.** greetd's prompt is *announced*, not
+**Only the show-password box sits under the password field.** greetd's prompt is *announced*, not
 shown: with an ordinary PAM stack it is "Password:", which only repeats the
 field's label, and on an unusual one (a 2FA code) it is still heard. Failures
 and notices ("Wrong password. Try again.", PAM's own messages) go to the
@@ -247,6 +248,14 @@ would add "password text" to the row's own "dash i Password:". Nothing reaches t
 field outside Insert mode, and the role change reaches Orca a frame after Insert
 mode starts, before a first character can be typed. Removing that role would make
 Orca read passwords aloud.
+
+**Show password.** The box under the field is not a setting and is never
+saved: the provider queues `showPassword` for `GreeterHooks`, which sets the
+renderer's `password_revealed`. The row stays a `<password>`, so the buffer is
+still zeroized and still committed as one. Only the masking stops (the drawn
+buffer, the spoken echo and the password role), so the typed letters are on
+screen and Orca echoes them. Escape cancels a password edit and wipes it, so the
+box is ticked before typing, not halfway through.
 
 The buffer is zeroized — bytes wiped, not just the length reset — on every path
 that ends a password edit. What that does *not* buy, stated so nobody assumes

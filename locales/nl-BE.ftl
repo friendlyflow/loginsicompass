@@ -5,6 +5,7 @@ login-provider-name = Aanmelden
 login-group-user = Gebruiker
 login-group-session = Sessie
 login-label-password = Wachtwoord
+login-show-password = wachtwoord tonen
 
 login-button-suspend = Slaapstand
 login-button-reboot = Herstarten

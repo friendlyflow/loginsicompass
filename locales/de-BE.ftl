@@ -5,6 +5,7 @@ login-provider-name = Anmelden
 login-group-user = Benutzer
 login-group-session = Sitzung
 login-label-password = Passwort
+login-show-password = Passwort anzeigen
 
 login-button-suspend = Bereitschaft
 login-button-reboot = Neu starten

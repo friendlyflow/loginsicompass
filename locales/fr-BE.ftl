@@ -5,6 +5,7 @@ login-provider-name = Connexion
 login-group-user = Utilisateur
 login-group-session = Session
 login-label-password = Mot de passe
+login-show-password = afficher le mot de passe
 
 login-button-suspend = Mettre en veille
 login-button-reboot = Redémarrer
