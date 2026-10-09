@@ -3,7 +3,7 @@
 # through crates.io.
 publish = false
 name = "loginsicompass"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 license = "GPL-3.0-only"
 description = "The accessible greetd login screen for sicompass"
@@ -48,11 +48,8 @@ clap = { version = "4", features = ["derive"] }
 # Not on crates.io: pinned by git, to a `rev` between releases and to
 # `tag = "vX.Y.Z"` at a release. Keep `sicompass-sdk` at the version
 # sicompass-ui requires, or cargo builds two copies of it.
-sicompass-sdk = "0.9.0"
-# rev, not a tag: no v0.2.1 has been cut yet for the accessibility.rs /
-# late-registration additions this depends on. Move to a tag at the next
-# sicompass-ui release.
-sicompass-ui = { git = "https://github.com/friendlyflow/sicompass-ui", rev = "9bf28849650c79ccb6a3df434b6f4598595b2a11" }
+sicompass-sdk = "0.9.6"
+sicompass-ui = { git = "https://github.com/friendlyflow/sicompass-ui", tag = "v0.2.1" }
 
 # Wiping the password buffer once it has been handed to greetd. See the
 # module docs in src/provider.rs for what this does and does not buy.
