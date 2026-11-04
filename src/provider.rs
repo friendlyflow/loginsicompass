@@ -1363,7 +1363,8 @@ mod tests {
         assert_eq!(p.take_announcement().as_deref(), Some("Password:"));
         let l = labels(&p.fetch());
         assert!(
-            !l.iter().any(|s| s.contains("Password:") && !tags::has_password(s)),
+            !l.iter()
+                .any(|s| s.contains("Password:") && !tags::has_password(s)),
             "greetd's prompt must not be on the page: {l:?}"
         );
         let below = &l[p.password_row() + 1];
@@ -1463,10 +1464,7 @@ mod tests {
             drain(&p),
             vec![("showPassword".to_owned(), "true".to_owned())]
         );
-        assert_eq!(
-            p.take_announcement().as_deref(),
-            Some("show password: on")
-        );
+        assert_eq!(p.take_announcement().as_deref(), Some("show password: on"));
         let page = p.fetch();
         let l = labels(&page);
         assert_eq!(l[p.password_row() + 1], "<checkbox checked>show password");

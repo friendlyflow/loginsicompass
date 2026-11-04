@@ -1,0 +1,31 @@
+#!/bin/sh
+# The command for greetd: `command = "/usr/bin/loginsicompass-session"` under
+# [default_session] in /etc/greetd/config.toml. The package never writes that
+# file: a login screen that fails to start leaves no graphical way in, so it is
+# the administrator's step, once the session is known to work. See the README.
+#
+# The same command the NixOS module gives greetd, where the comments explain
+# each line (services.greetd in desicompass's flake.nix).
+#
+#   XDG_*             the greeter account's home is not somewhere it can write.
+#                     Set before the bus, not only for the greeter, because the
+#                     services the bus starts (dconf, at-spi) inherit the bus's
+#                     environment, and every GSettings write Orca makes fails
+#                     without them.
+#   DESICOMPASS_*     no superkey and no bar before anyone has signed in. The
+#                     superkey would let anyone start programs.
+#   systemd-cat       greetd captures nothing a greeter prints.
+#                     `journalctl -t loginsicompass -b` reads this.
+#   dbus-run-session  without a session bus the greeter is mute to Orca.
+#   desicompass       the greeter is a Wayland client and needs a compositor.
+PATH="${PATH:-/usr/local/bin:/usr/bin:/bin}"
+XDG_CONFIG_HOME=/var/lib/loginsicompass/xdg/config
+XDG_STATE_HOME=/var/lib/loginsicompass/xdg/state
+XDG_DATA_HOME=/var/lib/loginsicompass/xdg/data
+XDG_CACHE_HOME=/var/lib/loginsicompass/xdg/cache
+DESICOMPASS_SUPERKEY=
+DESICOMPASS_BAR=
+export PATH XDG_CONFIG_HOME XDG_STATE_HOME XDG_DATA_HOME XDG_CACHE_HOME \
+    DESICOMPASS_SUPERKEY DESICOMPASS_BAR
+exec systemd-cat --identifier=loginsicompass dbus-run-session \
+    desicompass --backend tty --startup-cmd loginsicompass

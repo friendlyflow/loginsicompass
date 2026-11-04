@@ -96,4 +96,21 @@ instead, or split into separate sentences.
 
 ## Releasing
 
-A release is a `vX.Y.Z` tag on `main`. See `.claude/skills/release/SKILL.md`.
+A release is a `vX.Y.Z` tag on `main`, which builds and publishes the `.deb`, the
+`.rpm` and the archive (`.github/workflows/release.yml`). See
+`.claude/skills/release/SKILL.md` for the steps and
+[docs/releasing.md](docs/releasing.md) for why. Easy to get wrong:
+
+- **`packaging/` mirrors the NixOS module.** `packaging/loginsicompass-session`
+  is `services.greetd` in desicompass's `flake.nix` without the store paths. A
+  change to one belongs in the other.
+- **The packages never choose the greeter.** They do not write
+  `/etc/greetd/config.toml` or touch a display manager. That is the
+  administrator's step, for the same reason the NixOS module has two.
+- **A file added to the packages goes in both lists** in `Cargo.toml`.
+  `tests/packaging.rs` compares them.
+- **A new system library goes in `release.yml`** too. CI builds in the flake's
+  toolchain and will not notice. Only the Release workflow run by hand does.
+- **A dlopened library has to be declared** in both package lists, since no scan
+  finds it. `scripts/check-install.sh` runs the `.deb` in a bare container for that
+  reason, and has to stay in one.

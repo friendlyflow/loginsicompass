@@ -1,6 +1,6 @@
 [package]
-# Shipped as a Nix package and through desicompass's NixOS module, never
-# through crates.io.
+# Shipped as a Nix package, through desicompass's NixOS module, and as a .deb and
+# an .rpm (see below), never through crates.io.
 publish = false
 name = "loginsicompass"
 version = "0.2.1"
@@ -12,6 +12,71 @@ repository = "https://github.com/friendlyflow/loginsicompass"
 [[bin]]
 name = "loginsicompass"
 path = "src/main.rs"
+
+# ---------------------------------------------------------------------------
+# Linux packages, built by scripts/release-package.sh. See docs/releasing.md.
+# ---------------------------------------------------------------------------
+#
+# Two lists of the same files, because cargo-deb and cargo-generate-rpm each
+# want their own. tests/packaging.rs fails when they disagree. The fonts are
+# inside the binary, so their licenses ship with it, and the glob picks up a font
+# the renderer adds.
+#
+# Several libraries are dlopened, so they show up as no ELF dependency, no scan
+# finds them, and each has to be declared here: the renderer dlopens the Vulkan
+# loader, and SDL3 dlopens libwayland-client, -egl and -cursor. No desktop lacks
+# them, so scripts/check-install.sh runs the greeter in a bare container.
+# Everything else the binary links is found by `$auto` (dpkg-shlibdeps) and by
+# packaging/rpm-find-requires.
+#
+# at-spi2-core is what accesskit_unix talks to over D-Bus: without it the login
+# screen is silent to Orca, which here is a complete failure. desicompass is the
+# compositor the greeter runs in. Orca is recommended rather than required, so a
+# minimal install still has a way in.
+[package.metadata.deb]
+name = "loginsicompass"
+maintainer = "Nico Verrijdt <nico@friendlyflow.com>"
+copyright = "Nico Verrijdt <nico@friendlyflow.com>"
+section = "x11"
+priority = "optional"
+# Upstream's own package, so there is no Debian revision to add to the version.
+revision = ""
+depends = "$auto, greetd, desicompass, dbus, at-spi2-core, libwayland-client0, libwayland-egl1, libwayland-cursor0, libvulkan1, mesa-vulkan-drivers | vulkan-icd"
+recommends = "orca"
+maintainer-scripts = "packaging/scripts/"
+assets = [
+    ["target/release/loginsicompass", "usr/bin/loginsicompass", "755"],
+    ["packaging/loginsicompass-session", "usr/bin/loginsicompass-session", "755"],
+    ["README.md", "usr/share/doc/loginsicompass/README.md", "644"],
+    ["LICENSE", "usr/share/doc/loginsicompass/LICENSE", "644"],
+    ["THIRD-PARTY-LICENSES.html", "usr/share/doc/loginsicompass/THIRD-PARTY-LICENSES.html", "644"],
+    ["fonts/LICENSE-*.txt", "usr/share/doc/loginsicompass/", "644"],
+]
+
+# Run from the repo root: `source` is relative to the working directory. Sonames
+# and file paths rather than package names where the name is not the same on
+# Fedora and openSUSE.
+[package.metadata.generate-rpm]
+summary = "The accessible greetd login screen for sicompass"
+license = "GPL-3.0-only"
+url = "https://github.com/friendlyflow/loginsicompass"
+post_install_script = "packaging/scripts/postinst"
+requires = { greetd = "*", desicompass = "*", "/usr/bin/dbus-run-session" = "*", at-spi2-core = "*", "libwayland-client.so.0()(64bit)" = "*", "libwayland-egl.so.1()(64bit)" = "*", "libwayland-cursor.so.0()(64bit)" = "*", "libvulkan.so.1()(64bit)" = "*" }
+recommends = { mesa-vulkan-drivers = "*", orca = "*" }
+assets = [
+    { source = "target/release/loginsicompass", dest = "/usr/bin/loginsicompass", mode = "755" },
+    { source = "packaging/loginsicompass-session", dest = "/usr/bin/loginsicompass-session", mode = "755" },
+    { source = "README.md", dest = "/usr/share/doc/loginsicompass/README.md", mode = "644" },
+    { source = "LICENSE", dest = "/usr/share/doc/loginsicompass/LICENSE", mode = "644" },
+    { source = "THIRD-PARTY-LICENSES.html", dest = "/usr/share/doc/loginsicompass/THIRD-PARTY-LICENSES.html", mode = "644" },
+    { source = "fonts/LICENSE-*.txt", dest = "/usr/share/doc/loginsicompass/", mode = "644" },
+]
+
+[features]
+# Compile SDL3 from source and link it statically. Only the release packages do
+# (scripts/release-package.sh). Off by default, so the dev shell and the Nix
+# build link the system one.
+bundled-sdl3 = ["sicompass-ui/bundled-sdl3"]
 
 [target.'cfg(target_os = "linux")'.dependencies]
 # Wayland client — smithay-client-toolkit 0.21 for XDG shell, shm, seat

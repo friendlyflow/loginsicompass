@@ -46,6 +46,50 @@ fails to start leaves no graphical way in, so recovery is a text console and
 `nixos-rebuild --rollback`. Its output goes to the journal:
 `journalctl -t loginsicompass -b`.
 
+## Install on Debian, Ubuntu and Fedora
+
+| Package | Download |
+| --- | --- |
+| `.deb`, for Debian 12, Ubuntu 24.04 and newer | [loginsicompass_amd64.deb](https://github.com/friendlyflow/loginsicompass/releases/latest/download/loginsicompass_amd64.deb) |
+| `.rpm`, for Fedora and openSUSE | [loginsicompass.x86_64.rpm](https://github.com/friendlyflow/loginsicompass/releases/latest/download/loginsicompass.x86_64.rpm) |
+| Archive, the program only | [loginsicompass-x86_64-unknown-linux-gnu.tar.xz](https://github.com/friendlyflow/loginsicompass/releases/latest/download/loginsicompass-x86_64-unknown-linux-gnu.tar.xz) |
+
+First [install desicompass](https://github.com/friendlyflow/desicompass#install-on-debian-ubuntu-and-fedora)
+and check that its session works from the login screen you have now. The login
+screen runs inside desicompass, so it needs that to work. Then:
+
+```bash
+sudo apt install ./loginsicompass_amd64.deb
+sudo dnf install ./loginsicompass.x86_64.rpm
+```
+
+This brings greetd along and changes nothing yet: your login screen stays the one
+you have. To switch, set the command in `/etc/greetd/config.toml`, keeping the
+`user` line that is already there:
+
+```toml
+[default_session]
+command = "/usr/bin/loginsicompass-session"
+```
+
+Then replace your current login screen with greetd, and restart. Your current one
+is usually `gdm3` on Ubuntu and Debian, `gdm` on Fedora, or `sddm`:
+
+```bash
+sudo systemctl disable gdm3
+sudo systemctl enable greetd
+```
+
+A login screen that fails to start leaves no graphical way in. Recovery is a text
+console (Ctrl+Alt+F2), where you turn the old one back on and restart:
+
+```bash
+sudo systemctl disable greetd
+sudo systemctl enable gdm3
+```
+
+Its output goes to the journal: `journalctl -t loginsicompass -b`.
+
 ## Trying it without logging out
 
 A fake greetd that accepts one password, and the greeter nested inside

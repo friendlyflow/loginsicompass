@@ -1,0 +1,41 @@
+#!/bin/sh
+# Runs after installing the .deb (as postinst) and the .rpm (as %post, through
+# `post_install_script` in Cargo.toml). Safe to repeat, so it runs on upgrades
+# too. It does for the greeter what `services.desicompass.greeter.enable` does on
+# NixOS, except for choosing the greeter: that stays the administrator's step.
+#
+# The account depends on the distribution: `_greetd` on Debian and Ubuntu,
+# `greetd` on Fedora, and `greeter` on Arch and NixOS. greetd's package has
+# already created it, since the package depends on greetd.
+#
+# It never fails: a failing script makes the package manager report the whole
+# install as broken.
+
+account=
+for candidate in _greetd greetd greeter; do
+    if getent passwd "$candidate" >/dev/null 2>&1; then
+        account="$candidate"
+        break
+    fi
+done
+
+if [ -z "$account" ]; then
+    echo "loginsicompass: no greetd account found (_greetd, greetd or greeter)." >&2
+    echo "Give the account in /etc/greetd/config.toml /var/lib/loginsicompass" >&2
+    echo "and membership of the sicompass-a11y group by hand." >&2
+    exit 0
+fi
+
+group="$(id -gn "$account" 2>/dev/null || echo "$account")"
+
+# The remembered user and session, and the XDG directories in
+# loginsicompass-session.
+install -d -m 0755 -o "$account" -g "$group" /var/lib/loginsicompass >/dev/null 2>&1 || :
+install -d -m 0700 -o "$account" -g "$group" /var/lib/loginsicompass/xdg >/dev/null 2>&1 || :
+
+# The accessibility settings the login screen shares with every session.
+# desicompass's package creates the group and the folder, and this one depends
+# on it.
+usermod -aG sicompass-a11y "$account" >/dev/null 2>&1 || :
+
+exit 0
