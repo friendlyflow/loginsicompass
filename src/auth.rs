@@ -20,7 +20,7 @@
 //! stuck in. (This is the bug cosmic-greeter fixed in its PR #373 — without the
 //! ACK, greetd waits forever and the greeter looks frozen on the last message.)
 
-use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread::JoinHandle;
 
 use crate::greetd::{AuthMessageType, ErrorType, GreetdClient, Request, Response};
@@ -93,10 +93,7 @@ impl GreetdWorker {
 
     /// Take one event if there is one. Never blocks.
     pub fn try_recv(&self) -> Option<GreetdEvent> {
-        match self.rx.try_recv() {
-            Ok(evt) => Some(evt),
-            Err(TryRecvError::Empty | TryRecvError::Disconnected) => None,
-        }
+        self.rx.try_recv().ok()
     }
 }
 

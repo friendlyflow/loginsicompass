@@ -17,13 +17,16 @@ impl Color {
     }
 
     /// Black (0, 0, 0, 1).
+    #[cfg(test)]
     pub const BLACK: Color = Color::new(0.0, 0.0, 0.0, 1.0);
     /// White (1, 1, 1, 1).
     pub const WHITE: Color = Color::new(1.0, 1.0, 1.0, 1.0);
     /// Transparent (0, 0, 0, 0).
+    #[cfg(test)]
     pub const TRANSPARENT: Color = Color::new(0.0, 0.0, 0.0, 0.0);
 
     /// Convert to a `u32` in `0xAARRGGBB` format (used by tiny-skia pixel buffers).
+    #[cfg(test)]
     pub fn to_argb32(self) -> u32 {
         let a = (self.a.clamp(0.0, 1.0) * 255.0) as u32;
         let r = (self.r.clamp(0.0, 1.0) * 255.0) as u32;

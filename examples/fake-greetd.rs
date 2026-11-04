@@ -18,7 +18,7 @@
 //! The modules are included by path because `loginsicompass` is a binary crate
 //! with no library target for an example to link against.
 
-#[path = "../src/greetd.rs"]
+#[path = "../src/greetd/response.rs"]
 mod greetd;
 
 #[path = "../src/fakegreetd.rs"]

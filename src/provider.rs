@@ -219,6 +219,7 @@ impl LoginProvider {
     }
 
     /// True once greetd has started the session and the greeter should quit.
+    #[cfg(test)]
     pub fn is_done(&self) -> bool {
         self.phase == Phase::Done
     }
@@ -326,10 +327,7 @@ impl LoginProvider {
     /// Drain everything the worker has produced. Returns true if the page changed.
     fn drain_greetd(&mut self) -> bool {
         let mut changed = false;
-        loop {
-            let Some(evt) = self.greetd.as_ref().and_then(|g| g.try_recv()) else {
-                break;
-            };
+        while let Some(evt) = self.greetd.as_ref().and_then(|g| g.try_recv()) {
             changed = true;
             match evt {
                 GreetdEvent::Prompt { secret, text } => {

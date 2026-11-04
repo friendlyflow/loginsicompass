@@ -129,10 +129,10 @@ pub fn parse_desktop_entry(
     }
     // A missing Type is tolerated (some session files omit it); an explicit
     // non-Application one is not.
-    if let Some(ty) = &ty {
-        if ty != "Application" {
-            return None;
-        }
+    if let Some(ty) = &ty
+        && ty != "Application"
+    {
+        return None;
     }
 
     let exec = exec?;
@@ -605,7 +605,7 @@ mod fallback_target_tests {
     /// the first rather than to nothing.
     #[test]
     fn the_remembered_session_is_chosen_by_id_and_degrades_to_the_first() {
-        let sessions = vec![
+        let sessions = [
             entry("cosmic", "COSMIC"),
             entry("desicompass", "Desicompass"),
         ];
@@ -621,7 +621,7 @@ mod fallback_target_tests {
     /// Whatever the fallback is handed, it must never be the old defaults.
     #[test]
     fn the_old_nobody_and_false_defaults_are_gone() {
-        let sessions = vec![entry("desicompass", "Desicompass")];
+        let sessions = [entry("desicompass", "Desicompass")];
         let s = &sessions[0];
         assert_ne!(s.exec, vec!["false".to_owned()]);
         assert!(!s.exec.iter().any(|a| a == "false"));

@@ -51,8 +51,9 @@ pub struct AppState {
     pub seat_state: SeatState,
     pub output_state: OutputState,
     pub shm: Shm,
-    pub compositor_state: CompositorState,
-    pub xdg_shell: XdgShell,
+    // Never read, but dropping them would tear the window down.
+    _compositor_state: CompositorState,
+    _xdg_shell: XdgShell,
 
     // ---- Window ----
     pub window: Window,
@@ -91,7 +92,7 @@ pub struct AppState {
 
 impl AppState {
     pub fn new(
-        conn: &Connection,
+        _conn: &Connection,
         globals: &GlobalList,
         qh: &QueueHandle<Self>,
         render_config: RenderConfig,
@@ -119,8 +120,8 @@ impl AppState {
             seat_state: SeatState::new(globals, qh),
             output_state: OutputState::new(globals, qh),
             shm,
-            compositor_state,
-            xdg_shell,
+            _compositor_state: compositor_state,
+            _xdg_shell: xdg_shell,
             window,
             pool,
             buffer: None,
@@ -141,7 +142,7 @@ impl AppState {
     }
 
     /// Draw the current frame using the software renderer and attach it to the window.
-    pub fn draw(&mut self, qh: &QueueHandle<Self>) {
+    pub fn draw(&mut self, _qh: &QueueHandle<Self>) {
         let w = self.width;
         let h = self.height;
 
@@ -166,7 +167,7 @@ impl AppState {
         cfg.height = h;
 
         let pixels = render_frame(&cfg, &self.entry);
-        for (dst, src) in canvas.chunks_exact_mut(4).zip(pixels.iter()) {
+        for (dst, src) in canvas.as_chunks_mut::<4>().0.iter_mut().zip(pixels.iter()) {
             // wl_shm ARGB8888 on little-endian is stored as [B, G, R, A].
             dst[0] = (*src & 0xFF) as u8; // B
             dst[1] = ((*src >> 8) & 0xFF) as u8; // G
@@ -297,7 +298,7 @@ impl CompositorHandler for AppState {
 
     fn frame(
         &mut self,
-        conn: &Connection,
+        _conn: &Connection,
         qh: &QueueHandle<Self>,
         _surface: &wl_surface::WlSurface,
         _time: u32,
@@ -388,10 +389,10 @@ impl SeatHandler for AppState {
         _seat: wl_seat::WlSeat,
         capability: Capability,
     ) {
-        if capability == Capability::Keyboard {
-            if let Some(kbd) = self.keyboard.take() {
-                kbd.release();
-            }
+        if capability == Capability::Keyboard
+            && let Some(kbd) = self.keyboard.take()
+        {
+            kbd.release();
         }
     }
 

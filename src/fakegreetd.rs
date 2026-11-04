@@ -9,17 +9,20 @@
 
 use std::io::{Read, Write};
 use std::os::unix::net::{UnixListener, UnixStream};
+#[cfg(test)]
 use std::path::Path;
 
 use crate::greetd::Response;
 
 /// One scripted exchange: what the client is expected to ask, and the reply.
+#[cfg(test)]
 pub struct Step {
     /// Substring that must appear in the received JSON. Empty matches anything.
     pub expect: &'static str,
     pub reply: Response,
 }
 
+#[cfg(test)]
 impl Step {
     pub fn new(expect: &'static str, reply: Response) -> Self {
         Self { expect, reply }
@@ -48,6 +51,7 @@ pub fn write_frame(conn: &mut UnixStream, resp: &Response) -> std::io::Result<()
 ///
 /// Returns every request line it saw, so a test can assert on the whole
 /// conversation rather than one message at a time.
+#[cfg(test)]
 pub fn serve_script(listener: &UnixListener, script: Vec<Step>) -> Vec<String> {
     let mut seen = Vec::new();
     let Ok((mut conn, _)) = listener.accept() else {
@@ -71,6 +75,7 @@ pub fn serve_script(listener: &UnixListener, script: Vec<Step>) -> Vec<String> {
 }
 
 /// Bind a socket in `dir` and return its path.
+#[cfg(test)]
 pub fn bind(dir: &Path) -> (UnixListener, std::path::PathBuf) {
     let path = dir.join("greetd.sock");
     let listener = UnixListener::bind(&path).expect("binding the fake greetd socket");
@@ -82,6 +87,7 @@ pub fn bind(dir: &Path) -> (UnixListener, std::path::PathBuf) {
 ///
 /// Any other password is refused with an `auth_error` whose text matches what
 /// PAM would produce, so the greeter's error path is exercised too.
+#[cfg(not(test))]
 pub fn serve_forever(listener: &UnixListener, password: &str) {
     for conn in listener.incoming() {
         let Ok(mut conn) = conn else { continue };

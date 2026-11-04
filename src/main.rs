@@ -9,7 +9,7 @@
 
 #[cfg(target_os = "linux")]
 mod auth;
-#[cfg(target_os = "linux")]
+#[cfg(all(target_os = "linux", test))]
 mod fakegreetd;
 #[cfg(target_os = "linux")]
 mod fallback;
@@ -154,10 +154,10 @@ mod linux {
 
         // Three roles in one binary, selected by one flag. See `crate::Backend`.
         match args.render_backend {
-            Some(crate::Backend::Gpu) => return run_gpu(&args),
+            Some(crate::Backend::Gpu) => run_gpu(&args),
             // `shm` is the software fallback: today's tiny-skia password box,
             // reached when the Vulkan path could not start.
-            Some(crate::Backend::Shm) => return run_shm(args),
+            Some(crate::Backend::Shm) => run_shm(args),
             // No flag: this process is the supervisor. It re-execs itself as
             // `gpu`, and falls back to `shm` once if that dies without having
             // started a session.

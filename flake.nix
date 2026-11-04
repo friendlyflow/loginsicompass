@@ -151,6 +151,8 @@
 
               # The fonts are inside the binary (through sicompass-ui), so their
               # licenses travel with it.
+              install -Dm644 fonts/LICENSE-BootstrapIcons.txt \
+                $out/share/doc/loginsicompass/LICENSE-BootstrapIcons.txt
               install -Dm644 fonts/LICENSE-DejaVu.txt \
                 $out/share/doc/loginsicompass/LICENSE-DejaVu.txt
               install -Dm644 fonts/LICENSE-NotoColorEmoji.txt \

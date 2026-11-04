@@ -27,6 +27,7 @@ pub struct PasswordEntry {
     chars: Vec<char>,
     pub mode: InputMode,
     /// The masking character drawn in secret mode (default `•`).
+    #[cfg(test)]
     pub mask_char: char,
 }
 
@@ -35,6 +36,7 @@ impl Default for PasswordEntry {
         PasswordEntry {
             chars: Vec::new(),
             mode: InputMode::Secret,
+            #[cfg(test)]
             mask_char: '•',
         }
     }
@@ -68,6 +70,7 @@ impl PasswordEntry {
         self.chars.len()
     }
 
+    #[cfg(test)]
     pub fn is_empty(&self) -> bool {
         self.chars.is_empty()
     }
@@ -81,6 +84,7 @@ impl PasswordEntry {
     ///
     /// In `Secret` mode yields `mask_char` for each position.
     /// In `Visible` mode yields the actual character.
+    #[cfg(test)]
     pub fn display_chars(&self) -> impl Iterator<Item = char> + '_ {
         self.chars.iter().map(move |&ch| match self.mode {
             InputMode::Secret => self.mask_char,

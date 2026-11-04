@@ -29,7 +29,9 @@
 //!
 //! Mirrors `ipc.c` + `greetd.c` in `legacy-c/`.
 
-use serde::{Deserialize, Serialize};
+mod response;
+
+use serde::Serialize;
 use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
 
@@ -69,40 +71,7 @@ pub enum Request {
     CancelSession,
 }
 
-/// Responses received from greetd.
-///
-/// `Serialize` is not needed to talk to greetd, only to *be* greetd: the
-/// scripted server in [`crate::fakegreetd`] writes these on the wire, in tests
-/// and when running the greeter with no PAM behind it.
-#[derive(Debug, Deserialize, Serialize, PartialEq)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum Response {
-    Success,
-    Error {
-        error_type: ErrorType,
-        description: String,
-    },
-    AuthMessage {
-        auth_message_type: AuthMessageType,
-        auth_message: String,
-    },
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
-pub enum ErrorType {
-    AuthError,
-    Error,
-}
-
-#[derive(Debug, Deserialize, Serialize, PartialEq, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
-pub enum AuthMessageType {
-    Visible,
-    Secret,
-    Info,
-    Error,
-}
+pub use response::{AuthMessageType, ErrorType, Response};
 
 // ---------------------------------------------------------------------------
 // GreetdClient
@@ -122,7 +91,8 @@ impl GreetdClient {
         Ok(Self { stream })
     }
 
-    /// Connect to an explicit socket path (used in tests).
+    /// Connect to an explicit socket path.
+    #[cfg(test)]
     pub fn connect_to(path: &str) -> io::Result<Self> {
         let stream = UnixStream::connect(path)?;
         Ok(Self { stream })
