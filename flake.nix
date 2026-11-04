@@ -117,7 +117,10 @@
         in
         rec {
           loginsicompass = craneLib.buildPackage (commonArgs // {
-            cargoArtifacts = craneLib.buildDepsOnly commonArgs;
+            # Only `cargo build`'s artifacts are reused by the build below;
+            # crane's default `cargo check` pass first would compile the whole
+            # graph for nothing.
+            cargoArtifacts = craneLib.buildDepsOnly (commonArgs // { cargoCheckCommand = "true"; });
             nativeBuildInputs = commonArgs.nativeBuildInputs ++ [ pkgs.makeWrapper ];
 
             # Same shape as desicompass's wrapper, and for the same reasons.
