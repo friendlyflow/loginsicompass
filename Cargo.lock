@@ -1536,7 +1536,7 @@ checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "loginsicompass"
-version = "0.2.1"
+version = "0.2.2"
 dependencies = [
  "clap",
  "image",
@@ -2662,9 +2662,9 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "sicompass-sdk"
-version = "0.9.12"
+version = "0.9.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e91fbe10d15913cca347cb3016aaf7dfa33d3e93da94e4060140481b0d55938b"
+checksum = "e78b89c9a6cb4a27aa711c1263a4eeb1fa1d406ff11e082466ba23f9eaed4c86"
 dependencies = [
  "async-trait",
  "fluent",
@@ -2684,8 +2684,8 @@ dependencies = [
 
 [[package]]
 name = "sicompass-ui"
-version = "0.2.1"
-source = "git+https://github.com/friendlyflow/sicompass-ui?rev=392bdb9641e327ef3a93e855739236e932c5dd31#392bdb9641e327ef3a93e855739236e932c5dd31"
+version = "0.2.2"
+source = "git+https://github.com/friendlyflow/sicompass-ui?tag=v0.2.2#8db8dce68ff06aec30177f1752bb823e230fdbf8"
 dependencies = [
  "accesskit",
  "accesskit_macos",
