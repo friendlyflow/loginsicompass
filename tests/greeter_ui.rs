@@ -264,3 +264,123 @@ fn starting_another_edit_wipes_the_previous_password() {
         );
     }
 }
+
+// ---- The page alone, its manual and its search -----------------------------
+
+/// The greeter as `gui.rs` sets it up: the page with nothing above it, and its own
+/// manual. Built on `renderer()` so the tests above keep their page unchanged.
+fn greeter() -> AppRenderer {
+    register_login_strings();
+    let mut r = renderer();
+    r.single_page = true;
+    r.manual = sicompass_ui::ManualText {
+        prefix: "login-manual",
+        lines: login_manual_lines(),
+    };
+    r.current_id.set_last(PASSWORD_ROW);
+    create_list_current_layer(&mut r);
+    r.sync_list_index_from_current_id();
+    r
+}
+
+const PASSWORD_ROW: usize = 2;
+
+const EN_US: &str = include_str!("../locales/en-US.ftl");
+
+/// The login strings, registered once, the way `i18n::init` does in the binary.
+fn register_login_strings() {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        sicompass_ui::shortcuts::register_translations();
+        for (locale, source) in [
+            ("en-US", EN_US),
+            ("nl-BE", include_str!("../locales/nl-BE.ftl")),
+            ("fr-BE", include_str!("../locales/fr-BE.ftl")),
+            ("de-BE", include_str!("../locales/de-BE.ftl")),
+        ] {
+            sicompass_sdk::localize::register_bundle(locale, source).unwrap();
+        }
+    });
+}
+
+fn login_manual_lines() -> usize {
+    sicompass_ui::help_text::messages(EN_US)
+        .iter()
+        .filter(|(k, _)| k.starts_with("login-manual-"))
+        .count()
+}
+
+#[test]
+fn the_page_has_no_sign_in_line_above_it_and_left_stays_on_it() {
+    let mut r = greeter();
+    assert_eq!(sicompass_ui::list::parent_line_text(&r), "");
+    dispatch_key(&mut r, Some(Keycode::Left), Mod::NOMOD);
+    assert_eq!(r.current_id.depth(), 2, "Left does not reach a 'Sign in' row");
+    assert!(rows(&r)[PASSWORD_ROW].starts_with("-i Password:"));
+}
+
+#[test]
+fn tab_opens_the_login_screens_own_manual_and_escape_comes_back_to_the_password() {
+    let mut r = greeter();
+    assert!(login_manual_lines() >= 10, "parsed {}", login_manual_lines());
+    dispatch_key(&mut r, Some(Keycode::Tab), Mod::NOMOD);
+    assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::Manual);
+    let l = rows(&r);
+    assert_eq!(l.len(), login_manual_lines());
+    assert!(l[0].contains("Beginner's manual"), "{:?}", l[0]);
+    assert!(l.iter().any(|x| x.contains("login screen")), "{l:?}");
+    assert!(l.iter().all(|x| !x.contains("Store")), "the app's manual: {l:?}");
+
+    dispatch_key(&mut r, Some(Keycode::Down), Mod::NOMOD);
+    dispatch_key(&mut r, Some(Keycode::Escape), Mod::NOMOD);
+    assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::General);
+    assert!(
+        r.current_list_item().unwrap().label.starts_with("-i Password:"),
+        "{:?}",
+        r.current_list_item()
+    );
+}
+
+#[test]
+fn f_searches_the_page() {
+    let mut r = greeter();
+    dispatch_key(&mut r, Some(Keycode::F), Mod::NOMOD);
+    assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::SimpleSearch);
+    sicompass_ui::handlers::handle_input(&mut r, "Shut");
+    let shown: Vec<String> = r
+        .filtered_list_indices
+        .iter()
+        .map(|&i| r.total_list[i].label.clone())
+        .collect();
+    assert!(shown.iter().any(|x| x.contains("Shut down")), "{shown:?}");
+}
+
+#[test]
+fn ctrl_f_finds_a_user_inside_the_user_group_and_enter_lands_on_it() {
+    let mut r = greeter();
+    dispatch_key(&mut r, Some(Keycode::F), Mod::LCTRLMOD);
+    assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::ExtendedSearch);
+    assert!(rows(&r).iter().any(|x| x.contains("guest")), "{:?}", rows(&r));
+    for item in &r.total_list {
+        let crumb = item.data.as_deref().unwrap_or("");
+        assert!(!crumb.contains("Sign in"), "a 'Sign in >' crumb: {crumb}");
+    }
+    sicompass_ui::handlers::handle_input(&mut r, "guest");
+    dispatch_key(&mut r, Some(Keycode::Return), Mod::NOMOD);
+    assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::General);
+    assert_eq!(r.current_id.depth(), 3, "inside the user group");
+    assert!(
+        r.current_list_item().unwrap().label.contains("guest"),
+        "{:?}",
+        r.current_list_item()
+    );
+}
+
+#[test]
+fn ctrl_f_while_typing_the_password_does_nothing() {
+    let mut r = greeter();
+    dispatch_key(&mut r, Some(Keycode::I), Mod::NOMOD);
+    assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::Insert);
+    dispatch_key(&mut r, Some(Keycode::F), Mod::LCTRLMOD);
+    assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::Insert);
+}

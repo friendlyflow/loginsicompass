@@ -18,7 +18,16 @@ greetd
 
 ## The page
 
-One provider, `LoginProvider`, whose `fetch()` is the whole screen:
+One provider, `LoginProvider`, whose `fetch()` is the whole screen. The page is all
+there is (`AppRenderer::single_page`): no "Sign in" row above it to climb to, no
+parent line naming it, and Left, double Home and a double Ctrl+F stop at it.
+`login-provider-name` is only the window title.
+
+Tab opens the beginner's manual, the login screen's own lines (`i18n::MANUAL`), and
+Escape comes back to where you were. f searches the page, and Ctrl+F searches it with
+the choices inside its groups. While the manual is open the clock's refresh waits,
+since rebuilding the list would move the reader. In the password field these letters
+are typed, and Ctrl+F does nothing.
 
 ```
 +R User [nico]                    ← radio group, names its own selection

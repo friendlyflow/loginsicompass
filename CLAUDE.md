@@ -69,6 +69,16 @@ The NixOS module that installs the greeter (greetd, the tmpfiles state
 directory, the XDG variables, `systemd-cat` and `dbus-run-session`) lives in the
 desicompass repo, next to the compositor the greeter runs in.
 
+## The beginner's manual
+
+Tab opens the login screen's own beginner's manual: `login-manual-01` to
+`login-manual-NN` in `locales/*.ftl`, with `NN` in `i18n::MANUAL`, which `gui.rs`
+hands the renderer (`AppRenderer::manual`). The app's manual speaks of programs,
+tabs and the Store, so the greeter never shows it. Write the lines to sicompass-ui's
+`docs/manual-guidelines.md`, and update them in the same change as anything they
+describe: the page's rows, a key, or a key in sicompass-ui. A test in `i18n.rs` holds
+the rules (`sicompass_ui::help_text::check_manual`).
+
 ## Code Style
 
 Follow standard Rust idioms. Use `#[allow(...)]` sparingly and only when

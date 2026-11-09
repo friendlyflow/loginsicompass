@@ -296,6 +296,11 @@ pub fn run(opts: &Options) -> Result<bool, String> {
     };
     app.renderer.privacy_blank = privacy_blank;
     app.renderer.a11y_refocus_on_move = screen_reader_started;
+    // The page is all there is: no "Sign in" row above it to climb to, and no
+    // parent line naming it. `login-provider-name` stays the window title.
+    app.renderer.single_page = true;
+    // Tab opens the login screen's own manual, not the app's.
+    app.renderer.manual = crate::i18n::MANUAL;
 
     // Land the cursor on the password field, the way the app lands a first-run
     // user on the onboarding line (`programs::focus_onboarding`).

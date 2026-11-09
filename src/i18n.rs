@@ -16,6 +16,15 @@ const BUNDLES: [(&str, &str); 4] = [
     ("de-BE", include_str!("../locales/de-BE.ftl")),
 ];
 
+/// The login screen's own beginner's manual (Tab): `login-manual-01` to
+/// `login-manual-16` in every bundle. The app's manual speaks of programs, tabs
+/// and the Store, which a login screen does not have. Raise `lines` with a new
+/// line, and follow sicompass-ui's `docs/manual-guidelines.md`.
+pub const MANUAL: sicompass_ui::ManualText = sicompass_ui::ManualText {
+    prefix: "login-manual",
+    lines: 16,
+};
+
 /// Register the bundles. Idempotent, so every entry point (and every test) can
 /// call it without caring whether another already has.
 pub fn init() {
@@ -86,6 +95,35 @@ mod tests {
             for k in keys(source) {
                 assert!(k.starts_with("login-"), "{locale}: {k} lacks the prefix");
             }
+        }
+    }
+
+    /// The manual is the lines `MANUAL` names, in every language, written to the
+    /// manual's rules (no missing or extra line, no em dash, no semicolon).
+    #[test]
+    fn the_manual_follows_the_rules_in_every_language() {
+        for (locale, source) in BUNDLES {
+            if let Err(faults) =
+                sicompass_ui::help_text::check_manual(source, MANUAL.prefix, MANUAL.lines)
+            {
+                panic!("{locale}.ftl:\n{faults}");
+            }
+        }
+    }
+
+    /// It is the login screen's manual, not the app's: it never sends the reader
+    /// to something this screen does not have.
+    #[test]
+    fn the_manual_speaks_only_of_the_login_screen() {
+        let english: String = sicompass_ui::help_text::messages(BUNDLES[0].1)
+            .into_iter()
+            .filter(|(k, _)| k.starts_with(MANUAL.prefix))
+            .map(|(_, v)| v)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(english.contains("login screen"), "{english}");
+        for absent in ["Store", "tutorial", "program", "Ctrl+T", "terminal"] {
+            assert!(!english.contains(absent), "the manual mentions {absent}");
         }
     }
 

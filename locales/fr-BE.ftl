@@ -66,3 +66,21 @@ login-month-9 = septembre
 login-month-10 = octobre
 login-month-11 = novembre
 login-month-12 = décembre
+
+# Le manuel du débutant (Tab), voir en-US.ftl.
+login-manual-01 = Manuel du débutant. Appuyez maintenant sur la flèche du bas pour entendre la ligne suivante, et sur la flèche du haut pour revenir d'une ligne. Échap quitte le manuel.
+login-manual-02 = Voici l'écran de connexion. C'est une liste, et chaque ligne est un élément. Votre lecteur d'écran lit la ligne où vous êtes. Pour rouvrir ce manuel, appuyez sur Tab.
+login-manual-03 = Début va à la première ligne de la liste et Fin à la dernière. Haut et Bas avancent d'une ligne à la fois.
+login-manual-04 = Chaque ligne commence par une marque. Une flèche vers la droite veut dire qu'il y a plus à l'intérieur. Un tiret veut dire qu'il n'y a rien dedans. La lettre après dit de quel type d'élément il s'agit.
+login-manual-05 = i est le champ du mot de passe. Appuyez sur i pour taper votre mot de passe, puis sur Entrée pour vous connecter. Échap jette ce que vous avez tapé.
+login-manual-06 = Un mot de passe incorrect est dit à voix haute et affiché en haut. Appuyez sur i et tapez-le à nouveau.
+login-manual-07 = R est un groupe de choix. Appuyez sur Droite pour entrer dans un groupe, allez à un choix et appuyez sur Entrée. Gauche en ressort. La ligne d'un groupe nomme le choix qu'il contient.
+login-manual-08 = Le groupe Utilisateur choisit qui se connecte, et le groupe Session choisit ce qui démarre après la connexion.
+login-manual-09 = c est une case à cocher. Appuyez sur Entrée pour la cocher ou la décocher. Afficher le mot de passe montre ce que vous tapez dans le champ du mot de passe au lieu de le cacher.
+login-manual-10 = b est un bouton. Appuyez sur Entrée sur Mettre en veille, Redémarrer ou Éteindre, et cet ordinateur le fait.
+login-manual-11 = La ligne avec la date et l'heure est l'horloge. C'est du texte, et il n'y a rien à y faire.
+login-manual-12 = Les lignes sous l'horloge sont des réglages. Lecteur d'écran allume ou éteint le lecteur d'écran. La protection contre l'espionnage vide l'écran, et les touches et le lecteur d'écran continuent de marcher.
+login-manual-13 = Taille du texte agrandit ou réduit le texte, jeu de couleurs choisit sombre ou clair, et langue change la langue de cet écran. Ce sont des groupes de choix, et votre choix est gardé.
+login-manual-14 = Mode recherche : appuyez sur f et tapez pour réduire la liste. Entrée va à la correspondance et Échap annule. Ctrl+F cherche partout, aussi dans les choix à l'intérieur des groupes.
+login-manual-15 = Appuyez sur m pour entendre chaque touche qui marche sur la ligne où vous êtes, et sur s pour lire toute la liste comme une seule page. Ctrl+W dit où vous êtes.
+login-manual-16 = Le mode manuel est cette liste. Échap vous ramène à l'écran de connexion, et Tab rouvre le manuel.
