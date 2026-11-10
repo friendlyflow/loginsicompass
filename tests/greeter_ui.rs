@@ -315,27 +315,41 @@ fn the_page_has_no_sign_in_line_above_it_and_left_stays_on_it() {
     let mut r = greeter();
     assert_eq!(sicompass_ui::list::parent_line_text(&r), "");
     dispatch_key(&mut r, Some(Keycode::Left), Mod::NOMOD);
-    assert_eq!(r.current_id.depth(), 2, "Left does not reach a 'Sign in' row");
+    assert_eq!(
+        r.current_id.depth(),
+        2,
+        "Left does not reach a 'Sign in' row"
+    );
     assert!(rows(&r)[PASSWORD_ROW].starts_with("-i Password:"));
 }
 
 #[test]
 fn tab_opens_the_login_screens_own_manual_and_escape_comes_back_to_the_password() {
     let mut r = greeter();
-    assert!(login_manual_lines() >= 10, "parsed {}", login_manual_lines());
+    assert!(
+        login_manual_lines() >= 10,
+        "parsed {}",
+        login_manual_lines()
+    );
     dispatch_key(&mut r, Some(Keycode::Tab), Mod::NOMOD);
     assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::Manual);
     let l = rows(&r);
     assert_eq!(l.len(), login_manual_lines());
     assert!(l[0].contains("Beginner's manual"), "{:?}", l[0]);
     assert!(l.iter().any(|x| x.contains("login screen")), "{l:?}");
-    assert!(l.iter().all(|x| !x.contains("Store")), "the app's manual: {l:?}");
+    assert!(
+        l.iter().all(|x| !x.contains("Store")),
+        "the app's manual: {l:?}"
+    );
 
     dispatch_key(&mut r, Some(Keycode::Down), Mod::NOMOD);
     dispatch_key(&mut r, Some(Keycode::Escape), Mod::NOMOD);
     assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::General);
     assert!(
-        r.current_list_item().unwrap().label.starts_with("-i Password:"),
+        r.current_list_item()
+            .unwrap()
+            .label
+            .starts_with("-i Password:"),
         "{:?}",
         r.current_list_item()
     );
@@ -345,7 +359,10 @@ fn tab_opens_the_login_screens_own_manual_and_escape_comes_back_to_the_password(
 fn f_searches_the_page() {
     let mut r = greeter();
     dispatch_key(&mut r, Some(Keycode::F), Mod::NOMOD);
-    assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::SimpleSearch);
+    assert_eq!(
+        r.coordinate,
+        sicompass_ui::app_state::Coordinate::SimpleSearch
+    );
     sicompass_ui::handlers::handle_input(&mut r, "Shut");
     let shown: Vec<String> = r
         .filtered_list_indices
@@ -359,8 +376,15 @@ fn f_searches_the_page() {
 fn ctrl_f_finds_a_user_inside_the_user_group_and_enter_lands_on_it() {
     let mut r = greeter();
     dispatch_key(&mut r, Some(Keycode::F), Mod::LCTRLMOD);
-    assert_eq!(r.coordinate, sicompass_ui::app_state::Coordinate::ExtendedSearch);
-    assert!(rows(&r).iter().any(|x| x.contains("guest")), "{:?}", rows(&r));
+    assert_eq!(
+        r.coordinate,
+        sicompass_ui::app_state::Coordinate::ExtendedSearch
+    );
+    assert!(
+        rows(&r).iter().any(|x| x.contains("guest")),
+        "{:?}",
+        rows(&r)
+    );
     for item in &r.total_list {
         let crumb = item.data.as_deref().unwrap_or("");
         assert!(!crumb.contains("Sign in"), "a 'Sign in >' crumb: {crumb}");
