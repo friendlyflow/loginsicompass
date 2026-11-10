@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3
+
+Built on sicompass-ui 0.2.3.
+
+- Tab opens the login screen's own beginner's manual, in four languages: what the password field, the user list and the session list are for, and how to leave the manual. Its first line says Tab opens it again, and it is announced as the beginner's manual mode.
+- PgUp and PgDn move one screen with the cursor at the same height, and they and Home and End are spoken.
+- The row you are on is marked with an outline, as in the app.
+
 ## 0.2.2
 
 Built on sicompass-ui 0.2.2.
