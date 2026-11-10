@@ -114,7 +114,7 @@ clap = { version = "4", features = ["derive"] }
 # `tag = "vX.Y.Z"` at a release. Keep `sicompass-sdk` at the version
 # sicompass-ui requires, or cargo builds two copies of it.
 sicompass-sdk = "0.9.13"
-sicompass-ui = { git = "https://github.com/friendlyflow/sicompass-ui", rev = "567b445e5ce5f9420dfe373edb6694a8ae1fb549" }
+sicompass-ui = { git = "https://github.com/friendlyflow/sicompass-ui", rev = "93c253de3943c92e3cb133b96ee4657569fdf574" }
 
 # Wiping the password buffer once it has been handed to greetd. See the
 # module docs in src/provider.rs for what this does and does not buy.
