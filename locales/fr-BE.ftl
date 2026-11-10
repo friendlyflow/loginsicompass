@@ -83,4 +83,4 @@ login-manual-12 = Les lignes sous l'horloge sont des réglages. Lecteur d'écran
 login-manual-13 = Taille du texte agrandit ou réduit le texte, jeu de couleurs choisit sombre ou clair, et langue change la langue de cet écran. Ce sont des groupes de choix, et votre choix est gardé.
 login-manual-14 = Mode recherche : appuyez sur f et tapez pour réduire la liste. Entrée va à la correspondance et Échap annule. Ctrl+F cherche partout, aussi dans les choix à l'intérieur des groupes.
 login-manual-15 = Appuyez sur m pour entendre chaque touche qui marche sur la ligne où vous êtes, et sur s pour lire toute la liste comme une seule page. Ctrl+W dit où vous êtes.
-login-manual-16 = Le mode manuel est cette liste. Échap vous ramène à l'écran de connexion, et Tab rouvre le manuel.
+login-manual-16 = Le mode manuel du débutant est cette liste. Échap vous ramène à l'écran de connexion, et Tab rouvre le manuel.

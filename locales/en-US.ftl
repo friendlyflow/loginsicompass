@@ -94,4 +94,4 @@ login-manual-12 = The lines under the clock are settings. Screen reader turns th
 login-manual-13 = Font scale makes the text bigger or smaller, color scheme picks dark or light, and language changes the language of this screen. They are groups of choices, and your choice is kept.
 login-manual-14 = Search mode: press f and type to narrow the list down. Enter goes to the match and Escape cancels. Ctrl+F searches everything, the choices inside the groups too.
 login-manual-15 = Press m to hear every key that works on the line you are on, and s to read the whole list as one page. Ctrl+W tells you where you are.
-login-manual-16 = Manual mode is this list. Escape takes you back to the login screen, and Tab opens the manual again.
+login-manual-16 = Beginner's manual mode is this list. Escape takes you back to the login screen, and Tab opens the manual again.

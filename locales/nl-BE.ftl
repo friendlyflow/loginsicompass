@@ -83,4 +83,4 @@ login-manual-12 = De regels onder de klok zijn instellingen. Schermlezer zet de 
 login-manual-13 = Tekstgrootte maakt de tekst groter of kleiner, kleurenschema kiest donker of licht, en taal verandert de taal van dit scherm. Het zijn groepen keuzes, en je keuze wordt bewaard.
 login-manual-14 = Zoekmodus: druk op f en typ om de lijst te verkleinen. Enter gaat naar de treffer en Escape annuleert. Ctrl+F zoekt overal, ook in de keuzes binnen de groepen.
 login-manual-15 = Druk op m om elke toets te horen die werkt op de regel waar je op staat, en op s om de hele lijst als een pagina te lezen. Ctrl+W zegt waar je bent.
-login-manual-16 = De handleidingmodus is deze lijst. Escape brengt je terug naar het aanmeldscherm, en Tab opent de handleiding weer.
+login-manual-16 = De beginnershandleidingmodus is deze lijst. Escape brengt je terug naar het aanmeldscherm, en Tab opent de handleiding weer.

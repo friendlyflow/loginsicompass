@@ -302,8 +302,7 @@ pub fn run(opts: &Options) -> Result<bool, String> {
     // Tab opens the login screen's own manual, not the app's.
     app.renderer.manual = crate::i18n::MANUAL;
 
-    // Land the cursor on the password field, the way the app lands a first-run
-    // user on the onboarding line (`programs::focus_onboarding`).
+    // Land the cursor on the password field.
     let mut id = IdArray::new();
     id.push(0);
     id.push(password_row);
