@@ -68,8 +68,8 @@ login-month-11 = novembre
 login-month-12 = décembre
 
 # Le manuel du débutant (Tab), voir en-US.ftl.
-login-manual-01 = Manuel du débutant. Appuyez maintenant sur la flèche du bas pour entendre la ligne suivante, et sur la flèche du haut pour revenir d'une ligne. Échap quitte le manuel.
-login-manual-02 = Voici l'écran de connexion. C'est une liste, et chaque ligne est un élément. Votre lecteur d'écran lit la ligne où vous êtes. Pour rouvrir ce manuel, appuyez sur Tab.
+login-manual-01 = Manuel du débutant. Appuyez maintenant sur la flèche du bas pour entendre la ligne suivante, et sur la flèche du haut pour revenir d'une ligne. Échap quitte le manuel, et Tab le rouvre.
+login-manual-02 = Voici l'écran de connexion. C'est une liste, et chaque ligne est un élément. Votre lecteur d'écran lit la ligne où vous êtes.
 login-manual-03 = Début va à la première ligne de la liste et Fin à la dernière. Haut et Bas avancent d'une ligne à la fois.
 login-manual-04 = Chaque ligne commence par une marque. Une flèche vers la droite veut dire qu'il y a plus à l'intérieur. Un tiret veut dire qu'il n'y a rien dedans. La lettre après dit de quel type d'élément il s'agit.
 login-manual-05 = i est le champ du mot de passe. Appuyez sur i pour taper votre mot de passe, puis sur Entrée pour vous connecter. Échap jette ce que vous avez tapé.

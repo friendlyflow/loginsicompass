@@ -68,8 +68,8 @@ login-month-11 = November
 login-month-12 = Dezember
 
 # Das Handbuch für Anfänger (Tab), siehe en-US.ftl.
-login-manual-01 = Handbuch für Anfänger. Drücke jetzt die Pfeiltaste nach unten, um die nächste Zeile zu hören, und die Pfeiltaste nach oben, um eine Zeile zurückzugehen. Escape verlässt das Handbuch.
-login-manual-02 = Das ist der Anmeldebildschirm. Er ist eine Liste, und jede Zeile ist ein Element. Dein Bildschirmleser liest die Zeile, auf der du bist. Um dieses Handbuch wieder zu öffnen, drücke Tab.
+login-manual-01 = Handbuch für Anfänger. Drücke jetzt die Pfeiltaste nach unten, um die nächste Zeile zu hören, und die Pfeiltaste nach oben, um eine Zeile zurückzugehen. Escape verlässt das Handbuch, und Tab öffnet es wieder.
+login-manual-02 = Das ist der Anmeldebildschirm. Er ist eine Liste, und jede Zeile ist ein Element. Dein Bildschirmleser liest die Zeile, auf der du bist.
 login-manual-03 = Pos1 springt zur ersten Zeile der Liste und Ende zur letzten. Hoch und Runter gehen eine Zeile weit.
 login-manual-04 = Jede Zeile beginnt mit einem Zeichen. Ein Pfeil nach rechts heißt, dass mehr darin steckt. Ein Strich heißt, dass nichts darin ist. Der Buchstabe danach sagt, welche Art von Element es ist.
 login-manual-05 = i ist das Passwortfeld. Drücke i, um dein Passwort zu tippen, und dann Enter, um dich anzumelden. Escape verwirft, was du getippt hast.

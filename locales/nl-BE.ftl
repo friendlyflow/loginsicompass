@@ -68,8 +68,8 @@ login-month-11 = november
 login-month-12 = december
 
 # De handleiding voor beginners (Tab), zie en-US.ftl.
-login-manual-01 = Handleiding voor beginners. Druk nu op de pijl omlaag om de volgende regel te horen, en op de pijl omhoog om een regel terug te gaan. Escape verlaat de handleiding.
-login-manual-02 = Dit is het aanmeldscherm. Het is een lijst, en elke regel is een element. Je schermlezer leest de regel waar je op staat. Om deze handleiding weer te openen, druk je op Tab.
+login-manual-01 = Handleiding voor beginners. Druk nu op de pijl omlaag om de volgende regel te horen, en op de pijl omhoog om een regel terug te gaan. Escape verlaat de handleiding, en Tab opent ze opnieuw.
+login-manual-02 = Dit is het aanmeldscherm. Het is een lijst, en elke regel is een element. Je schermlezer leest de regel waar je op staat.
 login-manual-03 = Home springt naar de eerste regel van de lijst en End naar de laatste. Omhoog en omlaag gaan een regel per keer.
 login-manual-04 = Elke regel begint met een teken. Een pijl naar rechts betekent dat er meer in zit. Een streepje betekent dat er niets in zit. De letter erna zegt wat voor element het is.
 login-manual-05 = i is het wachtwoordveld. Druk op i om je wachtwoord te typen, en daarna op Enter om je aan te melden. Escape gooit weg wat je typte.

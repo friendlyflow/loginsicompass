@@ -79,8 +79,8 @@ login-month-12 = December
 # this order. Written to sicompass-ui's docs/manual-guidelines.md: one idea per
 # line, the key first, no em dashes and no semicolons, every line in all four
 # bundles. MANUAL_LINES in src/gui.rs is the count.
-login-manual-01 = Beginner's manual. Press the Down arrow key now to hear the next line, and the Up arrow key to go back one line. Escape leaves the manual.
-login-manual-02 = This is the login screen. It is one list, and each line is one element. Your screen reader reads the line you are on. To open this manual again, press Tab.
+login-manual-01 = Beginner's manual. Press the Down arrow key now to hear the next line, and the Up arrow key to go back one line. Escape leaves the manual, and Tab opens it again.
+login-manual-02 = This is the login screen. It is one list, and each line is one element. Your screen reader reads the line you are on.
 login-manual-03 = Home jumps to the first line of the list and End to the last. Up and Down move one line at a time.
 login-manual-04 = Every line starts with a mark. An arrow right means there is more inside. A dash means there is nothing inside. The letter after it says what kind of element it is.
 login-manual-05 = i is the password field. Press i to start typing your password, then Enter to sign in. Escape throws away what you typed.
