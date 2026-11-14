@@ -107,7 +107,7 @@ clap = { version = "4", features = ["derive"] }
 # mode and the AccessKit tree are the app's, not a second implementation.
 #
 # Note what is NOT here: `sicompass`, the application crate. Linking it would
-# drag wasmtime, a bundled SQLite, a headless-Chromium driver, an IMAP client
+# drag a bundled SQLite, a headless-Chromium driver, an IMAP client
 # and an SMTP client into a login screen. See sicompass-ui's Cargo.toml.
 #
 # Not on crates.io: pinned by git, to a `rev` between releases and to

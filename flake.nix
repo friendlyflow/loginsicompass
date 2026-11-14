@@ -83,7 +83,7 @@
             # Vulkan path cannot start.
             #
             # What it deliberately does NOT link is the `sicompass`
-            # application crate, which would drag wasmtime, a bundled SQLite,
+            # application crate, which would drag a bundled SQLite,
             # a headless-Chromium driver and an IMAP/SMTP stack into a login
             # screen. See sicompass-ui's Cargo.toml.
             nativeBuildInputs = with pkgs; [

@@ -52,7 +52,7 @@ path.
 
 **It must never link the `sicompass` application crate.** It draws with
 `sicompass-ui`, the renderer it shares with the app, and gets its content
-through `sicompass-sdk`'s `Provider`. Linking the app would drag wasmtime, a
+through `sicompass-sdk`'s `Provider`. Linking the app would drag a
 bundled SQLite, a headless-Chromium driver and an IMAP/SMTP stack into a login
 screen, which is what the renderer was split out to prevent. What the renderer
 needs from an embedder it asks through `registry::HostHooks`, and the greeter
