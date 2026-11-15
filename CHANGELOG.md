@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.4
+
+Built on sicompass-ui 0.2.5.
+
+- A mouse and a touch screen work on the login screen. A click uses a line at once: a click on the password field starts typing there with the caret where you clicked, a click on a choice picks it, and a click on Suspend, Restart or Shut down presses it. A right click, or a click beside the list, is Escape.
+- In the password field a double click signs in, as Enter does.
+- The beginner's manual has a line about the mouse, in all four languages.
+- A screen magnifier follows the line you are on and the caret.
+
 ## 0.2.3
 
 Built on sicompass-ui 0.2.3.
