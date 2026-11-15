@@ -83,4 +83,5 @@ login-manual-12 = Die Zeilen unter der Uhr sind Einstellungen. Bildschirmleser s
 login-manual-13 = Schriftgröße macht den Text größer oder kleiner, Farbschema wählt dunkel oder hell, und Sprache ändert die Sprache dieses Bildschirms. Es sind Gruppen von Auswahlmöglichkeiten, und deine Wahl wird behalten.
 login-manual-14 = Suchmodus: Drücke f und tippe, um die Liste einzugrenzen. Enter geht zum Treffer und Escape bricht ab. Strg+F sucht überall, auch in den Auswahlmöglichkeiten in den Gruppen.
 login-manual-15 = Drücke m, um jede Taste zu hören, die auf der aktuellen Zeile funktioniert, und s, um die ganze Liste als eine Seite zu lesen. Strg+W sagt dir, wo du bist.
-login-manual-16 = Der Anfängerhandbuchmodus ist diese Liste. Escape bringt dich zurück zum Anmeldebildschirm, und Tab öffnet das Handbuch wieder.
+login-manual-16 = Maus: Ein Klick benutzt eine Zeile sofort. Ein Klick auf das Passwortfeld beginnt dort mit dem Tippen, und ein Rechtsklick ist Escape. Ein Touchscreen funktioniert genauso.
+login-manual-17 = Der Anfängerhandbuchmodus ist diese Liste. Escape bringt dich zurück zum Anmeldebildschirm, und Tab öffnet das Handbuch wieder.

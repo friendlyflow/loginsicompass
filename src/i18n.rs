@@ -22,7 +22,7 @@ const BUNDLES: [(&str, &str); 4] = [
 /// line, and follow sicompass-ui's `docs/manual-guidelines.md`.
 pub const MANUAL: sicompass_ui::ManualText = sicompass_ui::ManualText {
     prefix: "login-manual",
-    lines: 16,
+    lines: 17,
 };
 
 /// Register the bundles. Idempotent, so every entry point (and every test) can
